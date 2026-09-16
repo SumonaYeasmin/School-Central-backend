@@ -11,10 +11,11 @@ async function bootstrap() {
     .setTitle('School Central API')
     .setDescription('School Central Backend API Documentation')
     .setVersion('1.0')
+     .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('api/v1', app, document);
 
   await app.listen(process.env.PORT ?? 3000);
 }

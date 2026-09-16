@@ -1,10 +1,16 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
+import { RolesGuard } from '../auth/roles.guard.js';
+import { Roles } from '../auth/roles.decorator.js';
+import { UserRole } from '../generated/prisma/enums.js';
 
 @ApiTags('Users')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('users')
 export class UsersController {
     constructor(
@@ -12,13 +18,15 @@ export class UsersController {
     ) {}
 
     @Post()
-    @ApiOperation({ summary: 'Create a new user' })
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Create a new user (Admin only)' })
     create(@Body() createUserDto: CreateUserDto) {
         return this.usersService.createUser(createUserDto);
     }
 
     @Get()
-    @ApiOperation({ summary: 'Get all users' })
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Get all users (Admin only)' })
     findAll() {
         return this.usersService.getAllUsers();
     }
@@ -31,18 +39,21 @@ export class UsersController {
     }
 
     @Patch(':id')
-    @ApiOperation({ summary: 'Update a user by ID' })
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Update a user by ID (Admin only)' })
     @ApiParam({ name: 'id', description: 'User ID' })
     update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
         return this.usersService.updateUser(id, updateUserDto);
     }
 
     @Delete(':id')
-    @ApiOperation({ summary: 'Delete a user by ID' })
+    @Roles(UserRole.ADMIN)
+    @ApiOperation({ summary: 'Delete a user by ID (Admin only)' })
     @ApiParam({ name: 'id', description: 'User ID' })
     remove(@Param('id') id: string) {
         return this.usersService.deleteUser(id);
     }
 }
+
 
 
