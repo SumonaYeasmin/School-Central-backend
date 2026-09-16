@@ -3,19 +3,19 @@ import { UserRole } from '../../generated/prisma/enums.js';
 
 export class CreateUserDto {
   @ApiProperty({
-    example: 'John Doe',
+    example: 'sumona yeasmin',
     description: 'The full name of the user',
   })
   name: string;
 
   @ApiProperty({
-    example: 'john@example.com',
+    example: 'sumona@gmail.com',
     description: 'Unique email address',
   })
   email: string;
 
   @ApiProperty({
-    example: 'password123',
+    example: '123456',
     description: 'User login password',
   })
   password: string;
