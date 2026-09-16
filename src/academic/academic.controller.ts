@@ -1,0 +1,41 @@
+
+
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AcademicService } from './academic.service.js';
+import { CreateClassDto } from './dto/create-class.dto.js';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
+import { RolesGuard } from '../auth/roles.guard.js';
+import { Roles } from '../auth/roles.decorator.js';
+import { UserRole } from '../generated/prisma/enums.js';
+import { CreateSubjectDto } from './dto/create-subject.dto.js';
+
+@ApiTags('Academic')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Controller('academic')
+export class AcademicController {
+  constructor(private readonly academicService: AcademicService) {}
+
+  @Post('classes')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Create a new class (Admin only)' })
+  createClass(@Body() createClassDto: CreateClassDto) {
+    return this.academicService.createClass(createClassDto);
+  }
+
+  @Post('subjects')
+@Roles(UserRole.ADMIN)
+@ApiOperation({ summary: 'Create a new subject under a class (Admin only)' })
+createSubject(@Body() createSubjectDto: CreateSubjectDto) {
+  return this.academicService.createSubject(createSubjectDto);
+}
+
+@Get('classes/:classId/subjects')
+@ApiOperation({ summary: 'Get all subjects of a class' })
+getSubjectsByClass(@Param('classId') classId: string) {
+  return this.academicService.getSubjectsByClass(classId);
+
+}
+}
+
