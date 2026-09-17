@@ -27,6 +27,7 @@ model SchoolClass {
   name      String    @unique
   subjects  Subject[]
   sections  Section[]
+  students  Student[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 }
@@ -36,6 +37,7 @@ model Section {
   name      String      // A, B, C
   classId   String
   class     SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  students  Student[]
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
@@ -54,6 +56,25 @@ model Subject {
   @@unique([classId, name]) 
 }
 
+model Student {
+  id            String        @id @default(cuid())
+  studentId     String        @unique // e.g., "STU-2026-001"
+  name          String
+  dateOfBirth   DateTime?
+  gender        Gender?
+  photo         String?       // ছবির URL
+  classId       String
+  class         SchoolClass   @relation(fields: [classId], references: [id], onDelete: Restrict)
+  sectionId     String
+  section       Section       @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  roll          String
+  admissionDate DateTime      @default(now())
+  status        StudentStatus @default(ACTIVE)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  @@unique([classId, sectionId, roll]) 
+}
+
 
 
 enum UserRole {
@@ -61,3 +82,15 @@ enum UserRole {
   TEACHER
   PARENT
 }
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  TRANSFERRED
+}
+
