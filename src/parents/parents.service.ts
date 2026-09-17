@@ -1,7 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import prisma from '../shared/prisma.js';
 import { CreateParentDto } from './dto/create-parent.dto.js';
 import { UpdateParentDto } from './dto/update-parent.dto.js';
+import { AssignStudentDto } from './dto/assign-student.dto.js';
 
 @Injectable()
 export class ParentsService {
@@ -89,6 +94,103 @@ export class ParentsService {
 
     return await prisma.parent.delete({
       where: { id },
+    });
+  }
+
+  async assignStudent(parentId: string, assignStudentDto: AssignStudentDto) {
+    await this.getParentById(parentId);
+
+    const { studentId, relation, isPrimary } = assignStudentDto;
+
+    // Check if student exists (by database ID or custom studentId)
+    const student = await prisma.student.findFirst({
+      where: {
+        OR: [{ id: studentId }, { studentId: studentId }],
+      },
+    });
+
+    if (!student) {
+      throw new NotFoundException(`Student with ID "${studentId}" not found`);
+    }
+
+    // Check if this parent is already linked to this student
+    const existingRelation = await prisma.parentStudent.findUnique({
+      where: {
+        parentId_studentId: {
+          parentId,
+          studentId: student.id,
+        },
+      },
+    });
+
+    if (existingRelation) {
+      throw new ConflictException(
+        'This parent is already linked to this student',
+      );
+    }
+
+    // If marked as primary contact, reset other primary contacts for this student
+    if (isPrimary) {
+      await prisma.parentStudent.updateMany({
+        where: { studentId: student.id, isPrimary: true },
+        data: { isPrimary: false },
+      });
+    }
+
+    return await prisma.parentStudent.create({
+      data: {
+        parentId,
+        studentId: student.id,
+        relation,
+        isPrimary: isPrimary ?? false,
+      },
+      include: {
+        parent: true,
+        student: {
+          include: {
+            class: true,
+            section: true,
+          },
+        },
+      },
+    });
+  }
+
+  async removeStudent(parentId: string, studentId: string) {
+    await this.getParentById(parentId);
+
+    const student = await prisma.student.findFirst({
+      where: {
+        OR: [{ id: studentId }, { studentId: studentId }],
+      },
+    });
+
+    if (!student) {
+      throw new NotFoundException(`Student with ID "${studentId}" not found`);
+    }
+
+    const existingRelation = await prisma.parentStudent.findUnique({
+      where: {
+        parentId_studentId: {
+          parentId,
+          studentId: student.id,
+        },
+      },
+    });
+
+    if (!existingRelation) {
+      throw new NotFoundException(
+        'Relation between this parent and student does not exist',
+      );
+    }
+
+    return await prisma.parentStudent.delete({
+      where: {
+        parentId_studentId: {
+          parentId,
+          studentId: student.id,
+        },
+      },
     });
   }
 }

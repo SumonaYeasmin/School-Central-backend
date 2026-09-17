@@ -12,6 +12,7 @@ import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ParentsService } from './parents.service.js';
 import { CreateParentDto } from './dto/create-parent.dto.js';
 import { UpdateParentDto } from './dto/update-parent.dto.js';
+import { AssignStudentDto } from './dto/assign-student.dto.js';
 
 @ApiTags('Parents')
 @Controller('parents')
@@ -53,5 +54,26 @@ export class ParentsController {
   @ApiParam({ name: 'id', description: 'Parent database ID' })
   deleteParent(@Param('id') id: string) {
     return this.parentsService.deleteParent(id);
+  }
+
+  @Post(':id/students')
+  @ApiOperation({ summary: 'Link a student to a parent (FATHER, MOTHER, GUARDIAN, OTHER)' })
+  @ApiParam({ name: 'id', description: 'Parent database ID' })
+  assignStudent(
+    @Param('id') parentId: string,
+    @Body() assignStudentDto: AssignStudentDto,
+  ) {
+    return this.parentsService.assignStudent(parentId, assignStudentDto);
+  }
+
+  @Delete(':id/students/:studentId')
+  @ApiOperation({ summary: 'Unlink a student from a parent' })
+  @ApiParam({ name: 'id', description: 'Parent database ID' })
+  @ApiParam({ name: 'studentId', description: 'Student database ID or studentId' })
+  removeStudent(
+    @Param('id') parentId: string,
+    @Param('studentId') studentId: string,
+  ) {
+    return this.parentsService.removeStudent(parentId, studentId);
   }
 }
