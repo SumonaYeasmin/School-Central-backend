@@ -86,6 +86,11 @@ export class StudentsService {
             include: {
                 class: true,
                 section: true,
+                parents: {
+                    include: {
+                        parent: true,
+                    },
+                },
             },
             orderBy: {
                 roll: 'asc',
@@ -99,6 +104,11 @@ export class StudentsService {
             include: {
                 class: true,
                 section: true,
+                parents: {
+                    include: {
+                        parent: true,
+                    },
+                },
             },
         });
 
@@ -190,6 +200,11 @@ export class StudentsService {
             include: {
                 class: true,
                 section: true,
+                parents: {
+                    include: {
+                        parent: true,
+                    },
+                },
             },
         });
     }

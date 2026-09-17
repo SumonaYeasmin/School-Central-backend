@@ -23,6 +23,7 @@ export class ParentsService {
             OR: [
               { name: { contains: search, mode: 'insensitive' } },
               { phone: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
             ],
           }
         : undefined,
@@ -42,6 +43,55 @@ export class ParentsService {
         createdAt: 'desc',
       },
     });
+  }
+
+  async getMyChildren(userEmail?: string) {
+    if (!userEmail) {
+      throw new NotFoundException('Parent email is required');
+    }
+
+    const parent = await prisma.parent.findFirst({
+      where: {
+        email: { equals: userEmail, mode: 'insensitive' },
+      },
+      include: {
+        students: {
+          include: {
+            student: {
+              include: {
+                class: true,
+                section: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!parent) {
+      throw new NotFoundException(
+        `Parent profile not found with email: ${userEmail}. Please ensure parent profile has matching email.`,
+      );
+    }
+
+    return {
+      parentId: parent.id,
+      parentName: parent.name,
+      phone: parent.phone,
+      totalChildren: parent.students.length,
+      children: parent.students.map((ps) => ({
+        id: ps.student.id,
+        studentId: ps.student.studentId,
+        name: ps.student.name,
+        gender: ps.student.gender,
+        class: ps.student.class.name,
+        section: ps.student.section.name,
+        roll: ps.student.roll,
+        relation: ps.relation,
+        isPrimaryContact: ps.isPrimary,
+        status: ps.student.status,
+      })),
+    };
   }
 
   async getParentById(id: string) {

@@ -7,14 +7,18 @@ import {
   Patch,
   Post,
   Query,
+  Request,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ParentsService } from './parents.service.js';
 import { CreateParentDto } from './dto/create-parent.dto.js';
 import { UpdateParentDto } from './dto/update-parent.dto.js';
 import { AssignStudentDto } from './dto/assign-student.dto.js';
+// import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 
 @ApiTags('Parents')
+// @ApiBearerAuth()
+// @UseGuards(JwtAuthGuard)
 @Controller('parents')
 export class ParentsController {
   constructor(private readonly parentsService: ParentsService) {}
@@ -25,9 +29,19 @@ export class ParentsController {
     return this.parentsService.createParent(createParentDto);
   }
 
+  @Get('my-children')
+  // @UseGuards(JwtAuthGuard)
+  // @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get parent profile and all their children (by email or token)' })
+  @ApiQuery({ name: 'email', required: false, description: 'Parent email (for hassle-free testing)' })
+  getMyChildren(@Query('email') email?: string, @Request() req?: any) {
+    const targetEmail = email || req?.user?.email;
+    return this.parentsService.getMyChildren(targetEmail);
+  }
+
   @Get()
-  @ApiOperation({ summary: 'Get all parents (with optional search by name or phone)' })
-  @ApiQuery({ name: 'search', required: false, description: 'Search by name or phone number' })
+  @ApiOperation({ summary: 'Get all parents (with optional search by name, phone, or email)' })
+  @ApiQuery({ name: 'search', required: false, description: 'Search by name, phone, or email' })
   getAllParents(@Query('search') search?: string) {
     return this.parentsService.getAllParents(search);
   }

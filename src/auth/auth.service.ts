@@ -1,11 +1,10 @@
-
-
 // src/auth/auth.service.ts
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import prisma from '../shared/prisma.js';
 import { LoginDto } from './dto/login.dto.js';
+import { UserRole } from '../generated/prisma/enums.js';
 
 @Injectable()
 export class AuthService {
@@ -14,7 +13,7 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
-    // ১. ইমেইল দিয়ে ইউজার খোঁজা
+    // 1. Find user by email
     const user = await prisma.user.findUnique({
       where: { email },
     });
@@ -23,14 +22,14 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // ২. প্লেইন পাসওয়ার্ডের সাথে ডাটাবেজের হ্যাশ পাসওয়ার্ড মেলানো
+    // 2. Validate password
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // ৩. পাসওয়ার্ড মিলে গেলে JWT Token তৈরি করা
+    // 3. Generate JWT Token
     const payload = {
       sub: user.id,
       email: user.email,
@@ -48,5 +47,52 @@ export class AuthService {
       },
     };
   }
-}
 
+  async getProfile(userId?: string, email?: string) {
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          userId ? { id: userId } : {},
+          email ? { email } : {},
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // If PARENT, attach only personal contact info (phone, address) - NOT children
+    let parentDetails = null;
+    if (user.role === UserRole.PARENT) {
+      parentDetails = await prisma.parent.findFirst({
+        where: {
+          email: { equals: user.email, mode: 'insensitive' },
+        },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          address: true,
+        },
+      });
+    }
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: parentDetails?.phone ?? undefined,
+      address: parentDetails?.address ?? undefined,
+      createdAt: user.createdAt,
+    };
+  }
+}
