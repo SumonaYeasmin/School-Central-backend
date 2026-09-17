@@ -6,6 +6,7 @@ import { UsersModule } from './users/users.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AcademicModule } from './academic/academic.module.js';
 import { StudentsModule } from './students/students.module.js';
+import { ParentsModule } from './parents/parents.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -22,8 +23,10 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     AuthModule,
     AcademicModule,
     StudentsModule,
+    ParentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
+
