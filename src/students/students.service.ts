@@ -2,6 +2,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import prisma from '../shared/prisma.js';
 import { CreateStudentDto } from './dto/create-student.dto.js';
+import { UpdateStudentDto } from './dto/update-student.dto.js';
 
 @Injectable()
 export class StudentsService {
@@ -52,6 +53,35 @@ export class StudentsService {
 
     return student;
   }
+
+  async updateStudent(id: string, updateStudentDto: UpdateStudentDto) {
+    await this.getStudentById(id);
+
+    const { dateOfBirth, admissionDate, ...rest } = updateStudentDto;
+
+    return await prisma.student.update({
+      where: { id },
+      data: {
+        ...rest,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+        admissionDate: admissionDate ? new Date(admissionDate) : undefined,
+      },
+      include: {
+        class: true,
+        section: true,
+      },
+    });
+  }
+
+  async deleteStudent(id: string) {
+    await this.getStudentById(id);
+
+    return await prisma.student.delete({
+      where: { id },
+    });
+  }
 }
+
+
 
 
