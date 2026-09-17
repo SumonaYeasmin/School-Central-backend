@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import prisma from '../shared/prisma.js';
 import { CreateClassDto } from './dto/create-class.dto.js';
 import { CreateSubjectDto } from './dto/create-subject.dto.js';
+import { CreateSectionDto } from './dto/create-section.dto.js';
 
 @Injectable()
 export class AcademicService {
@@ -31,6 +32,14 @@ async getSubjectsByClass(classId: string) {
     where: { classId },
   });
 }
+
+// নতুন সেকশন তৈরি করা
+async createSection(createSectionDto: CreateSectionDto) {
+  return await prisma.section.create({
+    data: createSectionDto,
+  });
+}
+
 
 }
 

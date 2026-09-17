@@ -9,6 +9,7 @@ import { RolesGuard } from '../auth/roles.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { UserRole } from '../generated/prisma/enums.js';
 import { CreateSubjectDto } from './dto/create-subject.dto.js';
+import { CreateSectionDto } from './dto/create-section.dto.js';
 
 @ApiTags('Academic')
 @ApiBearerAuth()
@@ -36,6 +37,12 @@ createSubject(@Body() createSubjectDto: CreateSubjectDto) {
 getSubjectsByClass(@Param('classId') classId: string) {
   return this.academicService.getSubjectsByClass(classId);
 
+}
+@Post('sections')
+@Roles(UserRole.ADMIN)
+@ApiOperation({ summary: 'Create a new section under a class (Admin only)' })
+createSection(@Body() createSectionDto: CreateSectionDto) {
+  return this.academicService.createSection(createSectionDto);
 }
 }
 
