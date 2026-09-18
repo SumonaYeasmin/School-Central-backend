@@ -29,6 +29,7 @@ model SchoolClass {
   sections           Section[]
   students           Student[]
   teacherAssignments TeacherAssignment[]
+  routines           ClassRoutine[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 }
@@ -40,6 +41,7 @@ model Section {
   class              SchoolClass         @relation(fields: [classId], references: [id], onDelete: Cascade)
   students           Student[]
   teacherAssignments TeacherAssignment[]
+  routines           ClassRoutine[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -53,6 +55,7 @@ model Subject {
   classId            String
   class              SchoolClass         @relation(fields: [classId], references: [id], onDelete: Cascade)
   teacherAssignments TeacherAssignment[]
+  routines           ClassRoutine[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -119,6 +122,7 @@ model Teacher {
   joiningDate  DateTime?           @default(now())
 
   assignments  TeacherAssignment[]
+  routines     ClassRoutine[]
 
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
@@ -144,10 +148,46 @@ model TeacherAssignment {
   @@unique([classId, sectionId, subjectId])
 }
 
+model ClassRoutine {
+  id         String      @id @default(cuid())
+  day        DayOfWeek
+  startTime  String      // "HH:mm", e.g. "09:00"
+  endTime    String      // "HH:mm", e.g. "09:45"
+  roomNumber String?
+
+  classId    String
+  class      SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  sectionId  String
+  section    Section     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  subjectId  String
+  subject    Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  teacherId  String
+  teacher    Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([day, classId, sectionId])
+  @@index([day, teacherId])
+}
+
 enum UserRole {
   ADMIN
   TEACHER
   PARENT
+}
+
+enum DayOfWeek {
+  SATURDAY
+  SUNDAY
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
 }
 
 enum Gender {
