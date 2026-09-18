@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import prisma from '../shared/prisma.js';
 import { CreateRoutineDto } from './dto/create-routine.dto.js';
+import { DayOfWeek } from '../generated/prisma/enums.js';
 
 @Injectable()
 export class RoutinesService {
@@ -185,5 +186,177 @@ export class RoutinesService {
         },
       },
     });
+  }
+
+  /**
+   * Get routines with flexible filters.
+   * Admin can see:
+   * - Full week routine (when day is not provided)
+   * - Specific day routine (when day is provided, e.g. SUNDAY)
+   * - Filter by classId, sectionId, teacherId, subjectId
+   */
+  async getAllRoutines(
+    day?: DayOfWeek,
+    classId?: string,
+    sectionId?: string,
+    teacherId?: string,
+    subjectId?: string,
+  ) {
+    const routines = await prisma.classRoutine.findMany({
+      where: {
+        day: day || undefined,
+        classId: classId || undefined,
+        sectionId: sectionId || undefined,
+        teacherId: teacherId || undefined,
+        subjectId: subjectId || undefined,
+      },
+      include: {
+        class: {
+          select: { id: true, name: true },
+        },
+        section: {
+          select: { id: true, name: true },
+        },
+        subject: {
+          select: { id: true, name: true, code: true },
+        },
+        teacher: {
+          select: {
+            id: true,
+            teacherId: true,
+            name: true,
+            email: true,
+            designation: true,
+          },
+        },
+      },
+      orderBy: [
+        { day: 'asc' },
+        { startTime: 'asc' },
+      ],
+    });
+
+    return {
+      filterApplied: {
+        day: day || 'FULL_WEEK (ALL_DAYS)',
+        classId: classId || 'ALL_CLASSES',
+        sectionId: sectionId || 'ALL_SECTIONS',
+        teacherId: teacherId || 'ALL_TEACHERS',
+        subjectId: subjectId || 'ALL_SUBJECTS',
+      },
+      totalSlots: routines.length,
+      routines,
+    };
+  }
+
+  /**
+   * Get visual weekly timetable grid for a specific class & section
+   * Grouped day-by-day (Sunday to Saturday) or for a specific day
+   */
+  async getWeeklyTimetable(classId: string, sectionId: string, day?: DayOfWeek) {
+    const [schoolClass, section] = await Promise.all([
+      prisma.schoolClass.findUnique({ where: { id: classId } }),
+      prisma.section.findUnique({ where: { id: sectionId } }),
+    ]);
+
+    if (!schoolClass) {
+      throw new NotFoundException(`Class with ID "${classId}" not found`);
+    }
+    if (!section) {
+      throw new NotFoundException(`Section with ID "${sectionId}" not found`);
+    }
+
+    const routines = await prisma.classRoutine.findMany({
+      where: {
+        classId,
+        sectionId,
+        day: day || undefined,
+      },
+      include: {
+        subject: {
+          select: { id: true, name: true, code: true },
+        },
+        teacher: {
+          select: {
+            id: true,
+            teacherId: true,
+            name: true,
+            designation: true,
+          },
+        },
+      },
+      orderBy: { startTime: 'asc' },
+    });
+
+    const daysList: DayOfWeek[] = day
+      ? [day]
+      : [
+          DayOfWeek.SUNDAY,
+          DayOfWeek.MONDAY,
+          DayOfWeek.TUESDAY,
+          DayOfWeek.WEDNESDAY,
+          DayOfWeek.THURSDAY,
+          DayOfWeek.FRIDAY,
+          DayOfWeek.SATURDAY,
+        ];
+
+    const timetable: Record<string, any[]> = {};
+
+    for (const d of daysList) {
+      timetable[d] = routines
+        .filter((r) => r.day === d)
+        .map((r) => ({
+          id: r.id,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          roomNumber: r.roomNumber,
+          subject: r.subject,
+          teacher: r.teacher,
+        }));
+    }
+
+    return {
+      class: { id: schoolClass.id, name: schoolClass.name },
+      section: { id: section.id, name: section.name },
+      viewMode: day ? `SINGLE_DAY (${day})` : 'FULL_WEEK',
+      totalPeriods: routines.length,
+      timetable,
+    };
+  }
+
+  /**
+   * Get single routine slot details by ID
+   */
+  async getRoutineById(id: string) {
+    const routine = await prisma.classRoutine.findUnique({
+      where: { id },
+      include: {
+        class: {
+          select: { id: true, name: true },
+        },
+        section: {
+          select: { id: true, name: true },
+        },
+        subject: {
+          select: { id: true, name: true, code: true },
+        },
+        teacher: {
+          select: {
+            id: true,
+            teacherId: true,
+            name: true,
+            email: true,
+            phone: true,
+            designation: true,
+          },
+        },
+      },
+    });
+
+    if (!routine) {
+      throw new NotFoundException(`Routine slot with ID "${id}" not found`);
+    }
+
+    return routine;
   }
 }
