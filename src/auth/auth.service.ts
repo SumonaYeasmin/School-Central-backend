@@ -85,13 +85,35 @@ export class AuthService {
       });
     }
 
+    // If TEACHER, attach teacher profile info (designation, department, teacherId, phone)
+    let teacherDetails = null;
+    if (user.role === UserRole.TEACHER) {
+      teacherDetails = await prisma.teacher.findFirst({
+        where: {
+          email: { equals: user.email, mode: 'insensitive' },
+        },
+        select: {
+          id: true,
+          teacherId: true,
+          phone: true,
+          designation: true,
+          department: true,
+          joiningDate: true,
+        },
+      });
+    }
+
     return {
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
-      phone: parentDetails?.phone ?? undefined,
+      phone: parentDetails?.phone ?? teacherDetails?.phone ?? undefined,
       address: parentDetails?.address ?? undefined,
+      teacherId: teacherDetails?.teacherId ?? undefined,
+      designation: teacherDetails?.designation ?? undefined,
+      department: teacherDetails?.department ?? undefined,
+      joiningDate: teacherDetails?.joiningDate ?? undefined,
       createdAt: user.createdAt,
     };
   }

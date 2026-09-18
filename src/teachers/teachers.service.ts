@@ -80,6 +80,55 @@ export class TeachersService {
     });
   }
 
+  async getMyAssignments(userEmail?: string) {
+    if (!userEmail) {
+      throw new BadRequestException('Teacher email is required');
+    }
+
+    const teacher = await prisma.teacher.findFirst({
+      where: {
+        email: { equals: userEmail, mode: 'insensitive' },
+      },
+      select: {
+        assignments: {
+          include: {
+            class: true,
+            section: true,
+            subject: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+      },
+    });
+
+    if (!teacher) {
+      throw new NotFoundException(
+        `Teacher profile not found with email: ${userEmail}`,
+      );
+    }
+
+    return teacher.assignments.map((item) => ({
+      id: item.id,
+      isClassTeacher: item.isClassTeacher,
+      class: {
+        id: item.class.id,
+        name: item.class.name,
+      },
+      section: {
+        id: item.section.id,
+        name: item.section.name,
+      },
+      subject: {
+        id: item.subject.id,
+        name: item.subject.name,
+        code: item.subject.code,
+      },
+      createdAt: item.createdAt,
+    }));
+  }
+
   async getTeacherById(id: string) {
     const teacher = await prisma.teacher.findFirst({
       where: {

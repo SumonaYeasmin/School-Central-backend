@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Request,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { TeachersService } from './teachers.service.js';
@@ -30,6 +31,20 @@ export class TeachersController {
   @ApiOperation({ summary: 'Create / Register a new teacher' })
   createTeacher(@Body() createTeacherDto: CreateTeacherDto) {
     return this.teachersService.createTeacher(createTeacherDto);
+  }
+
+  @Get('my-assignments')
+  // @Roles(UserRole.TEACHER)
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get logged-in teacher assignments (classes, sections & subjects)' })
+  @ApiQuery({ name: 'email', required: false, description: 'Teacher email (for hassle-free testing)' })
+  getMyAssignments(
+    @Query('email') email?: string,
+    @Request() req?: any,
+  ) {
+    const targetEmail = email || req?.user?.email;
+    return this.teachersService.getMyAssignments(targetEmail);
   }
 
   @Get()
