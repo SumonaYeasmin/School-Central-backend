@@ -129,6 +129,79 @@ export class TeachersService {
     }));
   }
 
+  async getAssignmentStudents(assignmentId: string) {
+    const assignment = await prisma.teacherAssignment.findUnique({
+      where: { id: assignmentId },
+      include: {
+        class: true,
+        section: true,
+        subject: true,
+        teacher: true,
+      },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException(
+        `Teacher assignment with ID "${assignmentId}" not found`,
+      );
+    }
+
+    const students = await prisma.student.findMany({
+      where: {
+        classId: assignment.classId,
+        sectionId: assignment.sectionId,
+      },
+      include: {
+        class: true,
+        section: true,
+        parents: {
+          include: {
+            parent: true,
+          },
+        },
+      },
+      orderBy: {
+        roll: 'asc',
+      },
+    });
+
+    return {
+      assignment: {
+        id: assignment.id,
+        teacherName: assignment.teacher.name,
+        className: assignment.class.name,
+        sectionName: assignment.section.name,
+        subjectName: assignment.subject.name,
+        isClassTeacher: assignment.isClassTeacher,
+      },
+      totalStudents: students.length,
+      students: students.map((s) => ({
+        id: s.id,
+        studentId: s.studentId,
+        name: s.name,
+        gender: s.gender,
+        photo: s.photo,
+        roll: s.roll,
+        status: s.status,
+        class: {
+          id: s.class.id,
+          name: s.class.name,
+        },
+        section: {
+          id: s.section.id,
+          name: s.section.name,
+        },
+        parents: s.parents.map((p) => ({
+          id: p.parent.id,
+          name: p.parent.name,
+          phone: p.parent.phone,
+          relation: p.relation,
+          isPrimary: p.isPrimary,
+        })),
+      })),
+    };
+  }
+
   async getTeacherById(id: string) {
     const teacher = await prisma.teacher.findFirst({
       where: {

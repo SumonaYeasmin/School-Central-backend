@@ -47,6 +47,16 @@ export class TeachersController {
     return this.teachersService.getMyAssignments(targetEmail);
   }
 
+  @Get('assignments/:assignmentId/students')
+  // @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all students for a specific assignment' })
+  @ApiParam({ name: 'assignmentId', description: 'Teacher Assignment database ID' })
+  getAssignmentStudents(@Param('assignmentId') assignmentId: string) {
+    return this.teachersService.getAssignmentStudents(assignmentId);
+  }
+
   @Get()
   // @Roles(UserRole.ADMIN, UserRole.TEACHER)
   @ApiOperation({ summary: 'Get all teachers (with optional search and department filter)' })
