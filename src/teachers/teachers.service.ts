@@ -1,4 +1,5 @@
-  import {
+import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -6,6 +7,7 @@
 import prisma from '../shared/prisma.js';
 import { CreateTeacherDto } from './dto/create-teacher.dto.js';
 import { UpdateTeacherDto } from './dto/update-teacher.dto.js';
+import { AssignTeacherDto } from './dto/assign-teacher.dto.js';
 
 @Injectable()
 export class TeachersService {
@@ -151,6 +153,93 @@ export class TeachersService {
 
     return await prisma.teacher.delete({
       where: { id: existingTeacher.id },
+    });
+  }
+
+  async assignTeacher(teacherId: string, assignDto: AssignTeacherDto) {
+    const teacher = await this.getTeacherById(teacherId);
+
+    const { classId, sectionId, subjectId, isClassTeacher } = assignDto;
+
+    // 1. Validate that class, section, and subject exist
+    const [schoolClass, section, subject] = await Promise.all([
+      prisma.schoolClass.findUnique({ where: { id: classId } }),
+      prisma.section.findUnique({ where: { id: sectionId } }),
+      prisma.subject.findUnique({ where: { id: subjectId } }),
+    ]);
+
+    if (!schoolClass) {
+      throw new NotFoundException(`Class with ID "${classId}" not found`);
+    }
+    if (!section) {
+      throw new NotFoundException(`Section with ID "${sectionId}" not found`);
+    }
+    if (!subject) {
+      throw new NotFoundException(`Subject with ID "${subjectId}" not found`);
+    }
+
+    // 2. Check if section and subject belong to the target class
+    if (section.classId !== classId) {
+      throw new BadRequestException(
+        `Section "${section.name}" does not belong to class "${schoolClass.name}"`,
+      );
+    }
+    if (subject.classId !== classId) {
+      throw new BadRequestException(
+        `Subject "${subject.name}" does not belong to class "${schoolClass.name}"`,
+      );
+    }
+
+    // 3. Check if this subject in this section is already assigned to a teacher
+    const existingAssignment = await prisma.teacherAssignment.findUnique({
+      where: {
+        classId_sectionId_subjectId: {
+          classId,
+          sectionId,
+          subjectId,
+        },
+      },
+      include: {
+        teacher: true,
+      },
+    });
+
+    if (existingAssignment) {
+      throw new ConflictException(
+        `Subject "${subject.name}" in ${schoolClass.name} (Section ${section.name}) is already assigned to "${existingAssignment.teacher.name}"`,
+      );
+    }
+
+    return await prisma.teacherAssignment.create({
+      data: {
+        teacherId: teacher.id,
+        classId,
+        sectionId,
+        subjectId,
+        isClassTeacher: isClassTeacher ?? false,
+      },
+      include: {
+        teacher: true,
+        class: true,
+        section: true,
+        subject: true,
+      },
+    });
+  }
+
+  async removeAssignment(assignmentId: string) {
+    const assignment = await prisma.teacherAssignment.findUnique({
+      where: { id: assignmentId },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException(
+        `Teacher assignment with ID "${assignmentId}" not found`,
+      );
+    }
+
+    return await prisma.teacherAssignment.delete({
+      where: { id: assignmentId },
     });
   }
 }

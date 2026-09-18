@@ -12,6 +12,7 @@ import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { TeachersService } from './teachers.service.js';
 import { CreateTeacherDto } from './dto/create-teacher.dto.js';
 import { UpdateTeacherDto } from './dto/update-teacher.dto.js';
+import { AssignTeacherDto } from './dto/assign-teacher.dto.js';
 // import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 // import { RolesGuard } from '../auth/roles.guard.js';
 // import { Roles } from '../auth/roles.decorator.js';
@@ -68,5 +69,24 @@ export class TeachersController {
   @ApiParam({ name: 'id', description: 'Teacher database ID or teacherId' })
   deleteTeacher(@Param('id') id: string) {
     return this.teachersService.deleteTeacher(id);
+  }
+
+  @Post(':id/assignments')
+  // @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Assign a teacher to a Class, Section, and Subject' })
+  @ApiParam({ name: 'id', description: 'Teacher database ID or custom teacherId (e.g. TCH-2026-001)' })
+  assignTeacher(
+    @Param('id') teacherId: string,
+    @Body() assignTeacherDto: AssignTeacherDto,
+  ) {
+    return this.teachersService.assignTeacher(teacherId, assignTeacherDto);
+  }
+
+  @Delete('assignments/:assignmentId')
+  // @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Remove a teacher assignment' })
+  @ApiParam({ name: 'assignmentId', description: 'Teacher Assignment database ID' })
+  removeAssignment(@Param('assignmentId') assignmentId: string) {
+    return this.teachersService.removeAssignment(assignmentId);
   }
 }
