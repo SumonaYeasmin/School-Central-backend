@@ -1,7 +1,18 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Request,
+} from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { RoutinesService } from './routines.service.js';
 import { CreateRoutineDto } from './dto/create-routine.dto.js';
+import { UpdateRoutineDto } from './dto/update-routine.dto.js';
 import { DayOfWeek } from '../generated/prisma/enums.js';
 
 @ApiTags('Routines')
@@ -69,10 +80,53 @@ export class RoutinesController {
     return this.routinesService.getWeeklyTimetable(classId, sectionId, day);
   }
 
+  @Get('my-routine')
+  @ApiOperation({
+    summary: 'Get logged-in teacher personal class routine (Full week or specific day)',
+    description:
+      'Teacher can see all their assigned classes across the week or for a specific day.',
+  })
+  @ApiQuery({
+    name: 'email',
+    required: false,
+    description: 'Teacher email (optional if using JWT authentication)',
+  })
+  @ApiQuery({
+    name: 'day',
+    required: false,
+    enum: DayOfWeek,
+    description: 'Filter by specific day (leave empty for full week)',
+  })
+  getMyRoutine(
+    @Query('email') email?: string,
+    @Query('day') day?: DayOfWeek,
+    @Request() req?: any,
+  ) {
+    const targetEmail = email || req?.user?.email;
+    return this.routinesService.getMyRoutine(targetEmail, day);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a single routine slot by ID' })
   @ApiParam({ name: 'id', description: 'Class Routine database ID' })
   getRoutineById(@Param('id') id: string) {
     return this.routinesService.getRoutineById(id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update an existing routine slot by ID (with conflict checks)' })
+  @ApiParam({ name: 'id', description: 'Class Routine database ID' })
+  updateRoutine(
+    @Param('id') id: string,
+    @Body() updateRoutineDto: UpdateRoutineDto,
+  ) {
+    return this.routinesService.updateRoutine(id, updateRoutineDto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a routine slot by ID' })
+  @ApiParam({ name: 'id', description: 'Class Routine database ID' })
+  deleteRoutine(@Param('id') id: string) {
+    return this.routinesService.deleteRoutine(id);
   }
 }

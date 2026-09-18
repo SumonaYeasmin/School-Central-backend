@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import prisma from '../shared/prisma.js';
 import { CreateRoutineDto } from './dto/create-routine.dto.js';
+import { UpdateRoutineDto } from './dto/update-routine.dto.js';
 import { DayOfWeek } from '../generated/prisma/enums.js';
 
 @Injectable()
@@ -358,5 +359,274 @@ export class RoutinesService {
     }
 
     return routine;
+  }
+
+  /**
+   * Get logged-in teacher's routine schedule (Full week or specific day)
+   */
+  async getMyRoutine(userEmail?: string, day?: DayOfWeek) {
+    if (!userEmail) {
+      throw new BadRequestException('Teacher email is required');
+    }
+
+    const teacher = await prisma.teacher.findFirst({
+      where: {
+        email: { equals: userEmail, mode: 'insensitive' },
+      },
+    });
+
+    if (!teacher) {
+      throw new NotFoundException(
+        `Teacher profile not found with email: ${userEmail}`,
+      );
+    }
+
+    const routines = await prisma.classRoutine.findMany({
+      where: {
+        teacherId: teacher.id,
+        day: day || undefined,
+      },
+      include: {
+        class: {
+          select: { id: true, name: true },
+        },
+        section: {
+          select: { id: true, name: true },
+        },
+        subject: {
+          select: { id: true, name: true, code: true },
+        },
+      },
+      orderBy: [
+        { day: 'asc' },
+        { startTime: 'asc' },
+      ],
+    });
+
+    // Grouping by days for organized view
+    const daysList: DayOfWeek[] = day
+      ? [day]
+      : [
+          DayOfWeek.SUNDAY,
+          DayOfWeek.MONDAY,
+          DayOfWeek.TUESDAY,
+          DayOfWeek.WEDNESDAY,
+          DayOfWeek.THURSDAY,
+          DayOfWeek.FRIDAY,
+          DayOfWeek.SATURDAY,
+        ];
+
+    const weeklySchedule: Record<string, any[]> = {};
+    for (const d of daysList) {
+      weeklySchedule[d] = routines
+        .filter((r) => r.day === d)
+        .map((r) => ({
+          id: r.id,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          roomNumber: r.roomNumber,
+          class: r.class.name,
+          section: r.section.name,
+          subject: r.subject.name,
+          subjectCode: r.subject.code,
+        }));
+    }
+
+    return {
+      teacher: {
+        id: teacher.id,
+        teacherId: teacher.teacherId,
+        name: teacher.name,
+        email: teacher.email,
+        designation: teacher.designation,
+      },
+      viewMode: day ? `SINGLE_DAY (${day})` : 'FULL_WEEK',
+      totalClasses: routines.length,
+      weeklySchedule,
+    };
+  }
+
+  /**
+   * Update an existing routine slot with conflict checks (excluding current slot)
+   */
+  async updateRoutine(id: string, updateRoutineDto: UpdateRoutineDto) {
+    const existing = await this.getRoutineById(id);
+
+    const {
+      day,
+      startTime,
+      endTime,
+      roomNumber,
+      classId,
+      sectionId,
+      subjectId,
+      teacherId,
+    } = updateRoutineDto;
+
+    const targetDay = day ?? existing.day;
+    const targetStartTime = startTime ?? existing.startTime;
+    const targetEndTime = endTime ?? existing.endTime;
+    const targetRoomNumber =
+      roomNumber !== undefined ? (roomNumber ? roomNumber.trim() : null) : existing.roomNumber;
+    const targetClassId = classId ?? existing.classId;
+    const targetSectionId = sectionId ?? existing.sectionId;
+    const targetSubjectId = subjectId ?? existing.subjectId;
+    const targetTeacherId = teacherId ?? existing.teacherId;
+
+    // 1. Time Order Check
+    const startMinutes = this.timeToMinutes(targetStartTime);
+    const endMinutes = this.timeToMinutes(targetEndTime);
+    if (startMinutes >= endMinutes) {
+      throw new BadRequestException(
+        `Start time (${targetStartTime}) must be earlier than end time (${targetEndTime})`,
+      );
+    }
+
+    // 2. Validate entities if changed
+    const [schoolClass, section, subject, teacher] = await Promise.all([
+      prisma.schoolClass.findUnique({ where: { id: targetClassId } }),
+      prisma.section.findUnique({ where: { id: targetSectionId } }),
+      prisma.subject.findUnique({ where: { id: targetSubjectId } }),
+      prisma.teacher.findUnique({ where: { id: targetTeacherId } }),
+    ]);
+
+    if (!schoolClass) {
+      throw new NotFoundException(`Class with ID "${targetClassId}" not found`);
+    }
+    if (!section) {
+      throw new NotFoundException(`Section with ID "${targetSectionId}" not found`);
+    }
+    if (!subject) {
+      throw new NotFoundException(`Subject with ID "${targetSubjectId}" not found`);
+    }
+    if (!teacher) {
+      throw new NotFoundException(`Teacher with ID "${targetTeacherId}" not found`);
+    }
+
+    // 3. Consistency check: Section & Subject belong to Class
+    if (section.classId !== targetClassId) {
+      throw new BadRequestException(
+        `Section "${section.name}" does not belong to class "${schoolClass.name}"`,
+      );
+    }
+    if (subject.classId !== targetClassId) {
+      throw new BadRequestException(
+        `Subject "${subject.name}" does not belong to class "${schoolClass.name}"`,
+      );
+    }
+
+    // 4. Section Conflict Check (excluding current routine ID)
+    const sectionConflict = await prisma.classRoutine.findFirst({
+      where: {
+        id: { not: id },
+        day: targetDay,
+        sectionId: targetSectionId,
+        startTime: { lt: targetEndTime },
+        endTime: { gt: targetStartTime },
+      },
+      include: {
+        subject: true,
+        teacher: true,
+      },
+    });
+
+    if (sectionConflict) {
+      throw new ConflictException(
+        `Section "${section.name}" in "${schoolClass.name}" already has "${sectionConflict.subject.name}" class on ${targetDay} from ${sectionConflict.startTime} to ${sectionConflict.endTime} (Teacher: ${sectionConflict.teacher.name})`,
+      );
+    }
+
+    // 5. Teacher Conflict Check (excluding current routine ID)
+    const teacherConflict = await prisma.classRoutine.findFirst({
+      where: {
+        id: { not: id },
+        day: targetDay,
+        teacherId: targetTeacherId,
+        startTime: { lt: targetEndTime },
+        endTime: { gt: targetStartTime },
+      },
+      include: {
+        class: true,
+        section: true,
+        subject: true,
+      },
+    });
+
+    if (teacherConflict) {
+      throw new ConflictException(
+        `Teacher "${teacher.name}" is already assigned to "${teacherConflict.class.name} (${teacherConflict.section.name}) - ${teacherConflict.subject.name}" on ${targetDay} from ${teacherConflict.startTime} to ${teacherConflict.endTime}`,
+      );
+    }
+
+    // 6. Room Conflict Check (excluding current routine ID)
+    if (targetRoomNumber && targetRoomNumber.trim()) {
+      const roomConflict = await prisma.classRoutine.findFirst({
+        where: {
+          id: { not: id },
+          day: targetDay,
+          roomNumber: { equals: targetRoomNumber.trim(), mode: 'insensitive' },
+          startTime: { lt: targetEndTime },
+          endTime: { gt: targetStartTime },
+        },
+        include: {
+          class: true,
+          section: true,
+          subject: true,
+          teacher: true,
+        },
+      });
+
+      if (roomConflict) {
+        throw new ConflictException(
+          `Room "${targetRoomNumber.trim()}" is already booked for "${roomConflict.class.name} (${roomConflict.section.name}) - ${roomConflict.subject.name}" on ${targetDay} from ${roomConflict.startTime} to ${roomConflict.endTime} (Teacher: ${roomConflict.teacher.name})`,
+        );
+      }
+    }
+
+    // 7. Perform update
+    return await prisma.classRoutine.update({
+      where: { id },
+      data: {
+        day: targetDay,
+        startTime: targetStartTime,
+        endTime: targetEndTime,
+        roomNumber: targetRoomNumber ? targetRoomNumber.trim() : null,
+        classId: targetClassId,
+        sectionId: targetSectionId,
+        subjectId: targetSubjectId,
+        teacherId: targetTeacherId,
+      },
+      include: {
+        class: {
+          select: { id: true, name: true },
+        },
+        section: {
+          select: { id: true, name: true },
+        },
+        subject: {
+          select: { id: true, name: true, code: true },
+        },
+        teacher: {
+          select: {
+            id: true,
+            teacherId: true,
+            name: true,
+            email: true,
+            designation: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Delete a routine slot by ID
+   */
+  async deleteRoutine(id: string) {
+    await this.getRoutineById(id);
+
+    return await prisma.classRoutine.delete({
+      where: { id },
+    });
   }
 }
