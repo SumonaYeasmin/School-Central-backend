@@ -25,6 +25,13 @@ export class AcademicController {
     return this.academicService.createClass(createClassDto);
   }
 
+  @Get('classes')
+@ApiOperation({ summary: 'Get all classes with sections' })
+getAllClasses() {
+  return this.academicService.getAllClasses();
+}
+
+
   @Post('subjects')
   // @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Create a new subject under a class' })

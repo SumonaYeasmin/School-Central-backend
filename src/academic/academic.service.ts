@@ -71,6 +71,24 @@ export class AcademicService {
       data: createSectionDto,
     });
   }
+
+  // সব ক্লাস, সেকশন ও বিষয় ডাটাবেজ থেকে আনা
+async getAllClasses() {
+  return await prisma.schoolClass.findMany({
+    include: {
+      sections: true,
+      classSubjects: {
+        include: {
+          subject: true,
+        },
+      },
+    },
+    orderBy: {
+      name: 'asc',
+    },
+  });
+}
+
 }
 
 
