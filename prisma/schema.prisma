@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -12,6 +7,9 @@ datasource db {
   provider = "postgresql"
 }
 
+// ===============================
+// USER
+// ===============================
 model User {
   id        String   @id @default(cuid())
   name      String
@@ -22,11 +20,14 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
+// ===============================
+// SCHOOL CLASS
+// ===============================
 model SchoolClass {
   id                 String              @id @default(cuid())
   name               String              @unique
-  subjects           Subject[]
   sections           Section[]
+  classSubjects      ClassSubject[]
   students           Student[]
   teacherAssignments TeacherAssignment[]
   routines           ClassRoutine[]
@@ -34,9 +35,26 @@ model SchoolClass {
   updatedAt          DateTime            @updatedAt
 }
 
+// ===============================
+// ACADEMIC GROUP
+// Science / Humanities / Business Studies
+// ===============================
+model AcademicGroup {
+  id            String         @id @default(cuid())
+  name          String         @unique
+  classSubjects ClassSubject[]
+  students      Student[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+// ===============================
+// SECTION
+// A / B / C
+// ===============================
 model Section {
   id                 String              @id @default(cuid())
-  name               String              // A, B, C
+  name               String
   classId            String
   class              SchoolClass         @relation(fields: [classId], references: [id], onDelete: Cascade)
   students           Student[]
@@ -48,125 +66,158 @@ model Section {
   @@unique([classId, name])
 }
 
+// ===============================
+// SUBJECT
+// ===============================
 model Subject {
   id                 String              @id @default(cuid())
-  name               String      
-  code               String?     
-  classId            String
-  class              SchoolClass         @relation(fields: [classId], references: [id], onDelete: Cascade)
+  name               String              @unique
+  code               String?
+  classSubjects      ClassSubject[]
   teacherAssignments TeacherAssignment[]
   routines           ClassRoutine[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
-
-  @@unique([classId, name]) 
 }
 
+// ===============================
+// CLASS SUBJECT
+// কোন Class-এ কোন Subject থাকবে
+// Group-specific Subject হলে groupId থাকবে
+// Common Subject হলে groupId = null
+// ===============================
+model ClassSubject {
+  id           String         @id @default(cuid())
+  classId      String
+  groupId      String?
+  subjectId    String
+  isCompulsory Boolean        @default(true)
+  isOptional   Boolean        @default(false)
+  class        SchoolClass    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  group        AcademicGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  subject      Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([classId])
+  @@index([groupId])
+  @@index([subjectId])
+}
+
+// ===============================
+// STUDENT
+// ===============================
 model Student {
   id            String          @id @default(cuid())
-  studentId     String          @unique // e.g., "STU-2026-001"
+  studentId     String          @unique
   name          String
   dateOfBirth   DateTime?
   gender        Gender?
-  photo         String?       // ছবির URL
+  photo         String?
   classId       String
-  class         SchoolClass     @relation(fields: [classId], references: [id], onDelete: Restrict)
   sectionId     String
-  section       Section         @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  groupId       String?
   roll          String
   admissionDate DateTime        @default(now())
   status        StudentStatus   @default(ACTIVE)
+  class         SchoolClass     @relation(fields: [classId], references: [id], onDelete: Restrict)
+  section       Section         @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  group         AcademicGroup?  @relation(fields: [groupId], references: [id], onDelete: Restrict)
   parents       ParentStudent[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
-  @@unique([classId, sectionId, roll]) 
+  @@unique([classId, sectionId, roll])
 }
 
+// ===============================
+// PARENT
+// ===============================
 model Parent {
   id        String          @id @default(cuid())
   name      String
   phone     String
   email     String?
   address   String?
-
   students  ParentStudent[]
-
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 }
 
+// ===============================
+// PARENT ↔ STUDENT
+// Many-to-Many Relation
+// ===============================
 model ParentStudent {
   id        String         @id @default(cuid())
-
   parentId  String
   studentId String
-
   relation  ParentRelation
   isPrimary Boolean        @default(false)
-
   parent    Parent         @relation(fields: [parentId], references: [id], onDelete: Cascade)
   student   Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
 
   @@unique([parentId, studentId])
 }
 
+// ===============================
+// TEACHER
+// ===============================
 model Teacher {
-  id           String              @id @default(cuid())
-  teacherId    String              @unique 
-  name         String
-  email        String?             @unique
-  phone        String
-  designation  String             
-  department   String?             
-  joiningDate  DateTime?           @default(now())
-
-  assignments  TeacherAssignment[]
-  routines     ClassRoutine[]
-
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  id          String              @id @default(cuid())
+  teacherId   String              @unique
+  name        String
+  email       String?             @unique
+  phone       String
+  designation String
+  department  String?
+  joiningDate DateTime?           @default(now())
+  assignments TeacherAssignment[]
+  routines    ClassRoutine[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 }
 
+// ===============================
+// TEACHER ASSIGNMENT
+// কোন Teacher কোন Class / Section / Subject পড়াবে
+// ===============================
 model TeacherAssignment {
   id             String      @id @default(cuid())
-
   teacherId      String
   classId        String
   sectionId      String
   subjectId      String
   isClassTeacher Boolean     @default(false)
-
   teacher        Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   class          SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
   section        Section     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   subject        Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
   @@unique([classId, sectionId, subjectId])
 }
 
+// ===============================
+// CLASS ROUTINE
+// ===============================
 model ClassRoutine {
   id         String      @id @default(cuid())
   day        DayOfWeek
-  startTime  String      // "HH:mm", e.g. "09:00"
-  endTime    String      // "HH:mm", e.g. "09:45"
+  startTime  String
+  endTime    String
   roomNumber String?
-
   classId    String
-  class      SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
-
   sectionId  String
-  section    Section     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-
   subjectId  String
-  subject    Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-
   teacherId  String
+  class      SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  section    Section     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subject    Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   teacher    Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
@@ -174,6 +225,9 @@ model ClassRoutine {
   @@index([day, teacherId])
 }
 
+// ===============================
+// ENUMS
+// ===============================
 enum UserRole {
   ADMIN
   TEACHER

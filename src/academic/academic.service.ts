@@ -19,28 +19,58 @@ export class AcademicService {
     return schoolClass;
   }
 
-  // সাবজেক্ট তৈরি
-async createSubject(createSubjectDto: CreateSubjectDto) {
-  return await prisma.subject.create({
-    data: createSubjectDto,
-  });
-}
+  // সাবজেক্ট তৈরি এবং ক্লাসের সাথে যুক্ত করা
+  async createSubject(createSubjectDto: CreateSubjectDto) {
+    const { name, code, classId } = createSubjectDto;
 
-// কোনো ক্লাসের সব সাবজেক্ট দেখা
-async getSubjectsByClass(classId: string) {
-  return await prisma.subject.findMany({
-    where: { classId },
-  });
-}
+    // সাবজেক্ট তৈরি বা খুঁজে বের করা
+    const subject = await prisma.subject.upsert({
+      where: { name },
+      update: { code: code || undefined },
+      create: { name, code },
+    });
 
-// নতুন সেকশন তৈরি করা
-async createSection(createSectionDto: CreateSectionDto) {
-  return await prisma.section.create({
-    data: createSectionDto,
-  });
-}
+    // ক্লাসের সাথে সাবজেক্ট যুক্ত করা (ClassSubject)
+    const existingClassSubject = await prisma.classSubject.findFirst({
+      where: { classId, subjectId: subject.id },
+    });
 
+    if (!existingClassSubject) {
+      await prisma.classSubject.create({
+        data: {
+          classId,
+          subjectId: subject.id,
+        },
+      });
+    }
 
+    return subject;
+  }
+
+  // কোনো ক্লাসের সব সাবজেক্ট দেখা
+  async getSubjectsByClass(classId: string) {
+    const classSubjects = await prisma.classSubject.findMany({
+      where: { classId },
+      include: {
+        subject: true,
+        group: true,
+      },
+    });
+
+    return classSubjects.map((cs) => ({
+      ...cs.subject,
+      isCompulsory: cs.isCompulsory,
+      isOptional: cs.isOptional,
+      group: cs.group,
+    }));
+  }
+
+  // নতুন সেকশন তৈরি করা
+  async createSection(createSectionDto: CreateSectionDto) {
+    return await prisma.section.create({
+      data: createSectionDto,
+    });
+  }
 }
 
 

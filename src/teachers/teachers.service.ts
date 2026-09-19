@@ -306,9 +306,12 @@ export class TeachersService {
         `Section "${section.name}" does not belong to class "${schoolClass.name}"`,
       );
     }
-    if (subject.classId !== classId) {
+    const classSubject = await prisma.classSubject.findFirst({
+      where: { classId, subjectId },
+    });
+    if (!classSubject) {
       throw new BadRequestException(
-        `Subject "${subject.name}" does not belong to class "${schoolClass.name}"`,
+        `Subject "${subject.name}" is not assigned to class "${schoolClass.name}"`,
       );
     }
 
