@@ -5,10 +5,10 @@ import prisma from '../src/shared/prisma.js';
 // ===============================
 
 async function main() {
-  console.log('🌱 Seeding academic data...');
+  console.log('🌱 Seeding accurate academic data (Classes, Groups, Subjects)...');
 
   // ==========================================
-  // 1. CREATE CLASSES & SECTIONS
+  // 1. ENSURE CLASSES & SECTIONS (Never delete existing classes)
   // ==========================================
 
   const classNames = [
@@ -32,7 +32,6 @@ async function main() {
 
     classes[name] = schoolClass;
 
-    // Create Section A and Section B for each class
     for (const secName of sectionNames) {
       await prisma.section.upsert({
         where: {
@@ -50,11 +49,10 @@ async function main() {
     }
   }
 
-  console.log('✅ Classes and Sections (Section A & B) created');
-
+  console.log('✅ Classes and Sections ensured');
 
   // ==========================================
-  // 2. CREATE ACADEMIC GROUPS
+  // 2. ENSURE ACADEMIC GROUPS
   // ==========================================
 
   const groupNames = [
@@ -75,51 +73,60 @@ async function main() {
     groups[name] = group;
   }
 
-  console.log('✅ Academic groups created');
-
+  console.log('✅ Academic groups ensured');
 
   // ==========================================
-  // 3. SUBJECT CREATION HELPER
+  // 3. CLEAN ONLY PREVIOUS CLASS-SUBJECT MAPPINGS
+  // (Students, Parents, Teachers, Classes are untouched!)
+  // ==========================================
+  await prisma.classSubject.deleteMany({});
+  console.log('🧹 Cleaned previous duplicate class-subject mappings');
+
+  // ==========================================
+  // 4. SUBJECT CREATION & UPSERT HELPER
   // ==========================================
 
-  const subjectCache: Record<
-    string,
-    { id: string; name: string }
-  > = {};
+  const subjectCache: Record<string, { id: string; name: string }> = {};
 
-  async function getSubject(name: string) {
+  async function getOrCreateSubject(name: string, code: string | null = null) {
     if (subjectCache[name]) {
+      if (code) {
+        await prisma.subject.update({
+          where: { name },
+          data: { code },
+        });
+      }
       return subjectCache[name];
     }
 
     const subject = await prisma.subject.upsert({
       where: { name },
-      update: {},
-      create: { name },
+      update: {
+        code: code || undefined,
+      },
+      create: {
+        name,
+        code,
+      },
     });
 
     subjectCache[name] = subject;
-
     return subject;
   }
 
-
   // ==========================================
-  // 4. CLASS SUBJECT MAPPING HELPER
+  // 5. CLASS SUBJECT MAPPING HELPER
   // ==========================================
 
   async function addClassSubject(
     classId: string,
     subjectName: string,
+    code: string | null = null,
     groupId: string | null = null,
     isCompulsory = true,
     isOptional = false,
   ) {
-    const subject = await getSubject(subjectName);
-
-    // groupId nullable হওয়ায় database unique constraint
-    // দিয়ে duplicate পুরোপুরি আটকানো যাচ্ছে না।
-    // তাই আগে manually check করছি।
+    const subject = await getOrCreateSubject(subjectName, code);
 
     const existing = await prisma.classSubject.findFirst({
       where: {
@@ -144,279 +151,264 @@ async function main() {
     });
   }
 
-
   // ==========================================
-  // 5. CLASS 6 SUBJECTS
+  // 6. CLASS 6 SUBJECTS (12 Core + 7 Optional)
   // ==========================================
 
-  const class6Subjects = [
-    'আনন্দপাঠ (বাংলা)',
-    'চারুপাঠ (বাংলা)',
+  const class6Core = [
+    'চারুপাঠ',
+    'আনন্দপাঠ',
     'বাংলা ব্যাকরণ ও নির্মিতি',
     'English For Today',
     'English Grammar and Composition',
     'গণিত',
     'বিজ্ঞান',
-    'তথ্য ও যোগাযোগ প্রযুক্তি (ICT)',
-    'বাংলাদেশ ও বিশ্বপরিচয়',
-    'ধর্ম ও নৈতিক শিক্ষা (ইসলাম/হিন্দু/বৌদ্ধ/খ্রিস্ট)',
-    'শারীরিক শিক্ষা ও স্বাস্থ্য',
-    'কর্ম ও জীবনমুখী শিক্ষা',
-    'চারু ও কারুকলা',
-    'কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান',
-  ];
-
-  for (const subject of class6Subjects) {
-    await addClassSubject(
-      classes['Class 6'].id,
-      subject,
-    );
-  }
-
-  console.log('✅ Class 6 subjects added');
-
-
-  // ==========================================
-  // 6. CLASS 7 SUBJECTS
-  // ==========================================
-
-  const class7Subjects = [
-    'আনন্দপাঠ (বাংলা)',
-    'চারুপাঠ (বাংলা)',
-    'বাংলা ব্যাকরণ ও নির্মিতি',
-    'English For Today',
-    'English Grammar and Composition',
-    'গণিত',
-    'বিজ্ঞান',
-    'তথ্য ও যোগাযোগ প্রযুক্তি (ICT)',
-    'বাংলাদেশ ও বিশ্বপরিচয়',
-    'ধর্ম ও নৈতিক শিক্ষা (ইসলাম/হিন্দু/বৌদ্ধ/খ্রিস্ট)',
-    'শারীরিক শিক্ষা ও স্বাস্থ্য',
-    'কর্ম ও জীবনমুখী শিক্ষা',
-    'চারু ও কারুকলা',
-    'কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান',
-  ];
-
-  for (const subject of class7Subjects) {
-    await addClassSubject(
-      classes['Class 7'].id,
-      subject,
-    );
-  }
-
-  console.log('✅ Class 7 subjects added');
-
-
-  // ==========================================
-  // 7. CLASS 8 SUBJECTS
-  // ==========================================
-
-  const class8Subjects = [
-    'আনন্দপাঠ (বাংলা)',
-    'সাহিত্য কণিকা (বাংলা)',
-    'বাংলা ব্যাকরণ ও নির্মিতি',
-    'English For Today',
-    'English Grammar and Composition',
-    'গণিত',
-    'বিজ্ঞান',
-    'তথ্য ও যোগাযোগ প্রযুক্তি (ICT)',
     'বাংলাদেশ ও বিশ্বপরিচয়',
-    'ধর্ম ও নৈতিক শিক্ষা',
+    'তথ্য ও যোগাযোগ প্রযুক্তি',
     'শারীরিক শিক্ষা ও স্বাস্থ্য',
     'কর্ম ও জীবনমুখী শিক্ষা',
-    'চারু ও কারুকলা',
-    'কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান',
+    'ধর্ম ও নৈতিক শিক্ষা',
   ];
 
-  for (const subject of class8Subjects) {
-    await addClassSubject(
-      classes['Class 8'].id,
-      subject,
-    );
+  const class6Optional = [
+    'কৃষিশিক্ষা',
+    'গার্হস্থ্যবিজ্ঞান',
+    'চারু ও কারুকলা',
+    'আরবি',
+    'সংস্কৃত',
+    'পালি',
+    'সংগীত',
+  ];
+
+  for (const subject of class6Core) {
+    await addClassSubject(classes['Class 6'].id, subject, null, null, true, false);
+  }
+  for (const subject of class6Optional) {
+    await addClassSubject(classes['Class 6'].id, subject, null, null, false, true);
   }
 
-  console.log('✅ Class 8 subjects added');
-
+  console.log('✅ Class 6 subjects mapped (12 Core, 7 Optional)');
 
   // ==========================================
-  // 8. CLASS 9–10 COMMON SUBJECTS
+  // 7. CLASS 7 SUBJECTS (12 Core + 7 Optional)
+  // ==========================================
+
+  const class7Core = [
+    'সপ্তবর্ণা',
+    'আনন্দপাঠ',
+    'বাংলা ব্যাকরণ ও নির্মিতি',
+    'English For Today',
+    'English Grammar and Composition',
+    'গণিত',
+    'বিজ্ঞান',
+    'বাংলাদেশ ও বিশ্বপরিচয়',
+    'তথ্য ও যোগাযোগ প্রযুক্তি',
+    'শারীরিক শিক্ষা ও স্বাস্থ্য',
+    'কর্ম ও জীবনমুখী শিক্ষা',
+    'ধর্ম ও নৈতিক শিক্ষা',
+  ];
+
+  const class7Optional = [
+    'কৃষিশিক্ষা',
+    'গার্হস্থ্যবিজ্ঞান',
+    'চারু ও কারুকলা',
+    'আরবি',
+    'সংস্কৃত',
+    'পালি',
+    'সংগীত',
+  ];
+
+  for (const subject of class7Core) {
+    await addClassSubject(classes['Class 7'].id, subject, null, null, true, false);
+  }
+  for (const subject of class7Optional) {
+    await addClassSubject(classes['Class 7'].id, subject, null, null, false, true);
+  }
+
+  console.log('✅ Class 7 subjects mapped (12 Core, 7 Optional)');
+
+  // ==========================================
+  // 8. CLASS 8 SUBJECTS (12 Core + 7 Optional)
+  // ==========================================
+
+  const class8Core = [
+    'সাহিত্য-কণিকা',
+    'আনন্দপাঠ',
+    'বাংলা ব্যাকরণ ও নির্মিতি',
+    'English For Today',
+    'English Grammar and Composition',
+    'গণিত',
+    'বিজ্ঞান',
+    'বাংলাদেশ ও বিশ্বপরিচয়',
+    'তথ্য ও যোগাযোগ প্রযুক্তি',
+    'শারীরিক শিক্ষা ও স্বাস্থ্য',
+    'কর্ম ও জীবনমুখী শিক্ষা',
+    'ধর্ম ও নৈতিক শিক্ষা',
+  ];
+
+  const class8Optional = [
+    'কৃষিশিক্ষা',
+    'গার্হস্থ্যবিজ্ঞান',
+    'চারু ও কারুকলা',
+    'আরবি',
+    'সংস্কৃত',
+    'পালি',
+    'সংগীত',
+  ];
+
+  for (const subject of class8Core) {
+    await addClassSubject(classes['Class 8'].id, subject, null, null, true, false);
+  }
+  for (const subject of class8Optional) {
+    await addClassSubject(classes['Class 8'].id, subject, null, null, false, true);
+  }
+
+  console.log('✅ Class 8 subjects mapped (12 Core, 7 Optional)');
+
+  // ==========================================
+  // 9. CLASS 9–10 COMMON SUBJECTS (WITH SSC CODES)
   // ==========================================
 
   const class9_10CommonSubjects = [
-    'বাংলা (বাংলা সাহিত্য, বাংলা সহপাঠ, বাংলা ব্যাকরণ ও নির্মিতি)',
-    'English (English For Today, English Grammar & Composition)',
-    'সাধারণ গণিত',
-    'তথ্য ও যোগাযোগ প্রযুক্তি (ICT)',
-    'ধর্ম ও নৈতিক শিক্ষা',
-    'বাংলাদেশ ও বিশ্বপরিচয়',
-    'সাধারণ বিজ্ঞান',
-    'ক্যারিয়ার শিক্ষা',
-    'শারীরিক শিক্ষা, স্বাস্থ্যবিজ্ঞান ও খেলাধুলা',
+    { name: 'বাংলা সাহিত্য', code: '101' },
+    { name: 'বাংলা সহপাঠ', code: '102' },
+    { name: 'বাংলা ভাষার ব্যাকরণ ও নির্মিতি', code: '103' },
+    { name: 'English For Today', code: '107' },
+    { name: 'English Grammar and Composition', code: '108' },
+    { name: 'গণিত', code: '109' },
+    { name: 'তথ্য ও যোগাযোগ প্রযুক্তি', code: '154' },
+    { name: 'বাংলাদেশ ও বিশ্বপরিচয়', code: '150' },
+    { name: 'শারীরিক শিক্ষা, স্বাস্থ্যবিজ্ঞান ও খেলাধুলা', code: '147' },
+    { name: 'ক্যারিয়ার শিক্ষা', code: '156' },
+    { name: 'ধর্ম ও নৈতিক শিক্ষা', code: '111' },
   ];
 
-
-  // ==========================================
-  // 9. ADD COMMON SUBJECTS TO CLASS 9
-  // ==========================================
-
-  for (const subject of class9_10CommonSubjects) {
-    await addClassSubject(
-      classes['Class 9'].id,
-      subject,
-    );
+  for (const sub of class9_10CommonSubjects) {
+    await addClassSubject(classes['Class 9'].id, sub.name, sub.code, null, true, false);
+    await addClassSubject(classes['Class 10'].id, sub.name, sub.code, null, true, false);
   }
 
-  console.log('✅ Class 9 common subjects added');
-
-
-  // ==========================================
-  // 10. ADD COMMON SUBJECTS TO CLASS 10
-  // ==========================================
-
-  for (const subject of class9_10CommonSubjects) {
-    await addClassSubject(
-      classes['Class 10'].id,
-      subject,
-    );
-  }
-
-  console.log('✅ Class 10 common subjects added');
-
+  console.log('✅ Class 9 & 10 common subjects mapped with SSC codes');
 
   // ==========================================
-  // 11. SCIENCE SUBJECTS
+  // 10. SCIENCE GROUP (CLASS 9 & 10)
   // ==========================================
 
   const scienceSubjects = [
-    'পদার্থবিজ্ঞান',
-    'রসায়ন',
-    'জীববিজ্ঞান',
-    'উচ্চতর গণিত / কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান',
+    { name: 'পদার্থবিজ্ঞান', code: '136', isCompulsory: true, isOptional: false },
+    { name: 'রসায়ন', code: '137', isCompulsory: true, isOptional: false },
+    { name: 'জীববিজ্ঞান', code: '138', isCompulsory: true, isOptional: false },
+    { name: 'উচ্চতর গণিত', code: '126', isCompulsory: false, isOptional: true },
   ];
 
-
-  // Class 9 Science
-  for (const subject of scienceSubjects) {
+  for (const sub of scienceSubjects) {
     await addClassSubject(
       classes['Class 9'].id,
-      subject,
+      sub.name,
+      sub.code,
       groups['Science'].id,
-      subject === 'উচ্চতর গণিত / কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান'
-        ? false
-        : true,
-      subject === 'উচ্চতর গণিত / কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান',
+      sub.isCompulsory,
+      sub.isOptional,
     );
-  }
-
-
-  // Class 10 Science
-  for (const subject of scienceSubjects) {
     await addClassSubject(
       classes['Class 10'].id,
-      subject,
+      sub.name,
+      sub.code,
       groups['Science'].id,
-      subject === 'উচ্চতর গণিত / কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান'
-        ? false
-        : true,
-      subject === 'উচ্চতর গণিত / কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান',
+      sub.isCompulsory,
+      sub.isOptional,
     );
   }
 
-  console.log('✅ Science subjects added');
-
+  console.log('✅ Science group subjects mapped');
 
   // ==========================================
-  // 12. HUMANITIES SUBJECTS
+  // 11. HUMANITIES GROUP (CLASS 9 & 10)
   // ==========================================
 
   const humanitiesSubjects = [
-    'বাংলাদেশের ইতিহাস ও বিশ্বসভ্যতা',
-    'ভূগোল ও পরিবেশ',
-    'পৌরনীতি ও নাগরিকতা / অর্থনীতি',
-    'কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান',
+    { name: 'বাংলাদেশের ইতিহাস ও বিশ্বসভ্যতা', code: '153', isCompulsory: true, isOptional: false },
+    { name: 'ভূগোল ও পরিবেশ', code: '110', isCompulsory: true, isOptional: false },
+    { name: 'পৌরনীতি ও নাগরিকতা', code: '140', isCompulsory: true, isOptional: false },
+    { name: 'অর্থনীতি', code: '141', isCompulsory: false, isOptional: true },
   ];
 
-
-  // Class 9 Humanities
-  for (const subject of humanitiesSubjects) {
+  for (const sub of humanitiesSubjects) {
     await addClassSubject(
       classes['Class 9'].id,
-      subject,
+      sub.name,
+      sub.code,
       groups['Humanities'].id,
-      subject === 'কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান'
-        ? false
-        : true,
-      subject === 'কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান',
+      sub.isCompulsory,
+      sub.isOptional,
     );
-  }
-
-
-  // Class 10 Humanities
-  for (const subject of humanitiesSubjects) {
     await addClassSubject(
       classes['Class 10'].id,
-      subject,
+      sub.name,
+      sub.code,
       groups['Humanities'].id,
-      subject === 'কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান'
-        ? false
-        : true,
-      subject === 'কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান',
+      sub.isCompulsory,
+      sub.isOptional,
     );
   }
 
-  console.log('✅ Humanities subjects added');
-
+  console.log('✅ Humanities group subjects mapped');
 
   // ==========================================
-  // 13. BUSINESS STUDIES SUBJECTS
+  // 12. BUSINESS STUDIES GROUP (CLASS 9 & 10)
   // ==========================================
 
-  const businessStudiesSubjects = [
-    'হিসাববিজ্ঞান',
-    'ব্যবসায় উদ্যোগ',
-    'ফিন্যান্স ও ব্যাংকিং',
-    'কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান',
+  const businessSubjects = [
+    { name: 'হিসাববিজ্ঞান', code: '146', isCompulsory: true, isOptional: false },
+    { name: 'ফিন্যান্স ও ব্যাংকিং', code: '152', isCompulsory: true, isOptional: false },
+    { name: 'ব্যবসায় উদ্যোগ', code: '143', isCompulsory: true, isOptional: false },
   ];
 
-
-  // Class 9 Business Studies
-  for (const subject of businessStudiesSubjects) {
+  for (const sub of businessSubjects) {
     await addClassSubject(
       classes['Class 9'].id,
-      subject,
+      sub.name,
+      sub.code,
       groups['Business Studies'].id,
-      subject === 'কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান'
-        ? false
-        : true,
-      subject === 'কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান',
+      sub.isCompulsory,
+      sub.isOptional,
     );
-  }
-
-
-  // Class 10 Business Studies
-  for (const subject of businessStudiesSubjects) {
     await addClassSubject(
       classes['Class 10'].id,
-      subject,
+      sub.name,
+      sub.code,
       groups['Business Studies'].id,
-      subject === 'কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান'
-        ? false
-        : true,
-      subject === 'কৃষি শিক্ষা / গার্হস্থ্য বিজ্ঞান',
+      sub.isCompulsory,
+      sub.isOptional,
     );
   }
 
-  console.log('✅ Business Studies subjects added');
-
+  console.log('✅ Business Studies group subjects mapped');
 
   // ==========================================
-  // DONE
+  // 13. OPTIONAL & ELECTIVE (CLASS 9 & 10)
   // ==========================================
+
+  const optionalOthers = [
+    { name: 'কৃষিশিক্ষা', code: '134' },
+    { name: 'গার্হস্থ্যবিজ্ঞান', code: '151' },
+    { name: 'চারু ও কারুকলা', code: '148' },
+    { name: 'সংগীত', code: '149' },
+    { name: 'আরবি', code: '121' },
+    { name: 'সংস্কৃত', code: '123' },
+    { name: 'পালি', code: '124' },
+  ];
+
+  for (const sub of optionalOthers) {
+    await addClassSubject(classes['Class 9'].id, sub.name, sub.code, null, false, true);
+    await addClassSubject(classes['Class 10'].id, sub.name, sub.code, null, false, true);
+  }
+
+  console.log('✅ Optional & Elective subjects mapped with codes');
 
   console.log('');
-  console.log('🎉 Academic seed completed successfully!');
+  console.log('🎉 Academic curriculum seed completed successfully! All students & parents remain 100% untouched.');
 }
-
 
 // ==========================================
 // RUN SEED
