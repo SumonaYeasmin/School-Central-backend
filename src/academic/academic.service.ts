@@ -32,7 +32,7 @@ const SUBJECT_ORDER_WEIGHTS: Record<string, number> = {
   'ধর্ম ও নৈতিক শিক্ষা': 70,
   // 7. Physical & Life Skills
   'শারীরিক শিক্ষা ও স্বাস্থ্য': 80,
-  'শারীরিক শিক্ষা, স্বাস্থ্যবিজ্ঞান ও খেলাধুলা': 81,
+  'শারীরিক শিক্ষা, healthবিজ্ঞান ও খেলাধুলা': 81,
   'কর্ম ও জীবনমুখী শিক্ষা': 90,
   'ক্যারিয়ার শিক্ষা': 91,
   // 8. Agriculture, Home Eco, Arts
@@ -88,9 +88,46 @@ export class AcademicService {
     return schoolClass;
   }
 
+  // ক্লাস আপডেট করা
+  async updateClass(id: string, updateClassDto: { name?: string; sections?: string[] }) {
+    const { name, sections } = updateClassDto;
+
+    if (name) {
+      await prisma.schoolClass.update({
+        where: { id },
+        data: { name },
+      });
+    }
+
+    if (sections && Array.isArray(sections)) {
+      for (const secName of sections) {
+        if (secName.trim()) {
+          const existing = await prisma.section.findFirst({
+            where: { classId: id, name: secName.trim() },
+          });
+          if (!existing) {
+            await prisma.section.create({
+              data: { classId: id, name: secName.trim() },
+            });
+          }
+        }
+      }
+    }
+
+    return this.getAllClasses();
+  }
+
+  // ক্লাস ডিলিট করা
+  async deleteClass(id: string) {
+    await prisma.schoolClass.delete({
+      where: { id },
+    });
+    return { success: true, message: 'Class deleted successfully' };
+  }
+
   // সাবজেক্ট তৈরি এবং ক্লাসের সাথে যুক্ত করা
   async createSubject(createSubjectDto: CreateSubjectDto) {
-    const { name, code, classId } = createSubjectDto;
+    const { name, code, classId, classIds } = createSubjectDto;
 
     // সাবজেক্ট তৈরি বা খুঁজে বের করা
     const subject = await prisma.subject.upsert({
@@ -99,18 +136,26 @@ export class AcademicService {
       create: { name, code },
     });
 
-    // ক্লাসের সাথে সাবজেক্ট যুক্ত করা (ClassSubject)
-    const existingClassSubject = await prisma.classSubject.findFirst({
-      where: { classId, subjectId: subject.id },
-    });
+    const targetClassIds =
+      classIds && classIds.length > 0
+        ? classIds
+        : classId
+        ? [classId]
+        : [];
 
-    if (!existingClassSubject) {
-      await prisma.classSubject.create({
-        data: {
-          classId,
-          subjectId: subject.id,
-        },
+    for (const cId of targetClassIds) {
+      const existingClassSubject = await prisma.classSubject.findFirst({
+        where: { classId: cId, subjectId: subject.id },
       });
+
+      if (!existingClassSubject) {
+        await prisma.classSubject.create({
+          data: {
+            classId: cId,
+            subjectId: subject.id,
+          },
+        });
+      }
     }
 
     return subject;

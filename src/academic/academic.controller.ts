@@ -23,6 +23,21 @@ export class AcademicController {
     return this.academicService.getAllClasses();
   }
 
+  @Patch('classes/:id')
+  @ApiOperation({ summary: 'Update a class by ID' })
+  updateClass(
+    @Param('id') id: string,
+    @Body() updateClassDto: { name?: string; sections?: string[] },
+  ) {
+    return this.academicService.updateClass(id, updateClassDto);
+  }
+
+  @Delete('classes/:id')
+  @ApiOperation({ summary: 'Delete a class by ID' })
+  deleteClass(@Param('id') id: string) {
+    return this.academicService.deleteClass(id);
+  }
+
   @Post('subjects')
   @ApiOperation({ summary: 'Create a new subject under a class' })
   createSubject(@Body() createSubjectDto: CreateSubjectDto) {

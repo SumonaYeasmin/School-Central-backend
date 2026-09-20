@@ -1,9 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateSubjectDto {
   @ApiProperty({
-    example: 'Mathematics',
+    example: 'গণিত',
     description: 'Name of the subject',
   })
   @IsNotEmpty({ message: 'Subject name cannot be empty' })
@@ -11,9 +11,9 @@ export class CreateSubjectDto {
   name: string;
 
   @ApiProperty({
-    example: 'MATH101',
+    example: '109',
     required: false,
-    description: 'Description (optional)',
+    description: 'SSC Subject Code',
   })
   @IsOptional()
   @IsString({ message: 'Subject code must be a string' })
@@ -21,9 +21,20 @@ export class CreateSubjectDto {
 
   @ApiProperty({
     example: 'class_id_here',
+    required: false,
     description: 'ID of the SchoolClass this subject belongs to',
   })
-  @IsNotEmpty({ message: 'classId is required' })
+  @IsOptional()
   @IsString({ message: 'classId must be a string' })
-  classId: string;
+  classId?: string;
+
+  @ApiProperty({
+    example: ['class-id-1', 'class-id-2'],
+    required: false,
+    description: 'List of Class IDs where this subject is taught',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  classIds?: string[];
 }
