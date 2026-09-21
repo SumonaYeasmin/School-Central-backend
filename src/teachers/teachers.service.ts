@@ -57,12 +57,12 @@ export class TeachersService {
         department: department || undefined,
         OR: search
           ? [
-              { name: { contains: search, mode: 'insensitive' } },
-              { teacherId: { contains: search, mode: 'insensitive' } },
-              { phone: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
-              { designation: { contains: search, mode: 'insensitive' } },
-            ]
+            { name: { contains: search, mode: 'insensitive' } },
+            { teacherId: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } },
+            { designation: { contains: search, mode: 'insensitive' } },
+          ]
           : undefined,
       },
       include: {
