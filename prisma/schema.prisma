@@ -256,6 +256,7 @@ model Result {
   subjectId String
 
   marks     Float
+  fullMarks Float
 
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)

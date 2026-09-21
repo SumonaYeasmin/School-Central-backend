@@ -10,6 +10,7 @@ import { ParentsModule } from './parents/parents.module.js';
 import { TeachersModule } from './teachers/teachers.module.js';
 import { RoutinesModule } from './routines/routines.module.js';
 import { ExamModule } from './exam/exam.module.js';
+import { ResultModule } from './result/result.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -30,6 +31,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     TeachersModule,
     RoutinesModule,
     ExamModule,
+    ResultModule,
   ],
   controllers: [AppController],
   providers: [AppService],
