@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -12,17 +13,26 @@ export class ResultService {
    * Create a new student exam result
    */
   async createResult(createResultDto: CreateResultDto) {
-    const { studentId, examId, subjectId, marks } = createResultDto;
+    const { studentId, examId, subjectId, marks, fullMarks } = createResultDto;
 
-    // 1. Verify student exists
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-    });
-    if (!student) {
-      throw new NotFoundException(`Student with ID "${studentId}" not found`);
+    // 1. Validate obtained marks vs full marks
+    if (marks > fullMarks) {
+      throw new BadRequestException(
+        `Obtained marks (${marks}) cannot be greater than full marks (${fullMarks})`,
+      );
     }
 
-    // 2. Verify exam exists
+    // 2. Verify student exists (supports both cuid id and studentId code like "S01")
+    const student = await prisma.student.findFirst({
+      where: {
+        OR: [{ id: studentId }, { studentId: studentId }],
+      },
+    });
+    if (!student) {
+      throw new NotFoundException(`Student "${studentId}" not found`);
+    }
+
+    // 3. Verify exam exists
     const exam = await prisma.exam.findUnique({
       where: { id: examId },
     });
@@ -30,21 +40,28 @@ export class ResultService {
       throw new NotFoundException(`Exam with ID "${examId}" not found`);
     }
 
-    // 3. Verify subject exists
-    const subject = await prisma.subject.findUnique({
-      where: { id: subjectId },
+    // 4. Verify subject exists (supports cuid id, code, or name like "সপ্তবর্ণা")
+    const subject = await prisma.subject.findFirst({
+      where: {
+        OR: [
+          { id: subjectId },
+          { code: subjectId },
+          { name: subjectId },
+          { name: { equals: subjectId, mode: 'insensitive' } },
+        ],
+      },
     });
     if (!subject) {
-      throw new NotFoundException(`Subject with ID "${subjectId}" not found`);
+      throw new NotFoundException(`Subject "${subjectId}" not found`);
     }
 
-    // 4. Check for duplicate result entry (studentId + examId + subjectId)
+    // 5. Check for duplicate result entry (studentId + examId + subjectId)
     const existingResult = await prisma.result.findUnique({
       where: {
         studentId_examId_subjectId: {
-          studentId,
-          examId,
-          subjectId,
+          studentId: student.id,
+          examId: exam.id,
+          subjectId: subject.id,
         },
       },
     });
@@ -55,13 +72,14 @@ export class ResultService {
       );
     }
 
-    // 5. Create result
+    // 6. Create result
     const result = await prisma.result.create({
       data: {
-        studentId,
-        examId,
-        subjectId,
+        studentId: student.id,
+        examId: exam.id,
+        subjectId: subject.id,
         marks,
+        fullMarks,
       },
       include: {
         student: {

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsNumber, IsString, Max, Min } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString, Min } from 'class-validator';
 
 export class CreateResultDto {
   @ApiProperty({
@@ -35,6 +35,15 @@ export class CreateResultDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'Marks must be a number' })
   @Min(0, { message: 'Marks cannot be less than 0' })
-  @Max(100, { message: 'Marks cannot be greater than 100' })
   marks: number;
+
+  @ApiProperty({
+    example: 100,
+    description: 'Total / Full marks for the subject exam',
+  })
+  @IsNotEmpty({ message: 'Full marks are required' })
+  @Type(() => Number)
+  @IsNumber({}, { message: 'Full marks must be a number' })
+  @Min(1, { message: 'Full marks must be at least 1' })
+  fullMarks: number;
 }
