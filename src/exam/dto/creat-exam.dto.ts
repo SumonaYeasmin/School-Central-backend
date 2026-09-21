@@ -9,7 +9,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { ExamStatus } from '../../generated/prisma/enums.js';
+import { ResultStatus } from '../../generated/prisma/enums.js';
 
 export class CreateExamDto {
   @ApiProperty({
@@ -32,15 +32,15 @@ export class CreateExamDto {
   year: number;
 
   @ApiProperty({
-    enum: ExamStatus,
-    example: ExamStatus.DRAFT,
+    enum: ResultStatus,
+    example: ResultStatus.DRAFT,
     required: false,
-    default: ExamStatus.DRAFT,
+    default: ResultStatus.DRAFT,
     description: 'Status of the exam (DRAFT, PUBLISHED)',
   })
   @IsOptional()
-  @IsEnum(ExamStatus, {
+  @IsEnum(ResultStatus, {
     message: 'Status must be one of: DRAFT, PUBLISHED',
   })
-  status?: ExamStatus;
+  status?: ResultStatus;
 }

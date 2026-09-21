@@ -1,12 +1,16 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import prisma from '../shared/prisma.js';
 import { CreateExamDto } from './dto/creat-exam.dto.js';
-import { ExamStatus } from '../generated/prisma/enums.js';
+import { ResultStatus } from '../generated/prisma/enums.js';
 
 @Injectable()
 export class ExamService {
   /**
-   * Create a new Exam
+   * 1. Create a new Exam
    */
   async createExam(createExamDto: CreateExamDto) {
     const { name, year, status } = createExamDto;
@@ -31,8 +35,13 @@ export class ExamService {
       data: {
         name: name.trim(),
         year,
-        status: status || ExamStatus.DRAFT,
-        publishedAt: status === ExamStatus.PUBLISHED ? new Date() : null,
+        status: status || ResultStatus.DRAFT,
+        resultPublishedAt: status === ResultStatus.PUBLISHED ? new Date() : null,
+      },
+      include: {
+        _count: {
+          select: { results: true },
+        },
       },
     });
 
@@ -43,11 +52,111 @@ export class ExamService {
   }
 
   /**
-   * Get all Exams
+   * 2. Get all Exams (with total results count)
    */
   async getAllExams() {
     return prisma.exam.findMany({
+      include: {
+        _count: {
+          select: { results: true },
+        },
+      },
       orderBy: [{ year: 'desc' }, { createdAt: 'desc' }],
     });
+  }
+
+  /**
+   * 3. Get single Exam by ID
+   */
+  async getExamById(id: string) {
+    const exam = await prisma.exam.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { results: true },
+        },
+      },
+    });
+
+    if (!exam) {
+      throw new NotFoundException(`Exam with ID "${id}" not found`);
+    }
+
+    return exam;
+  }
+
+  /**
+   * 4. Publish exam results
+   * Sets status to PUBLISHED and updates resultPublishedAt to current time
+   */
+  async publishExamResult(id: string) {
+    const exam = await prisma.exam.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { results: true },
+        },
+      },
+    });
+
+    if (!exam) {
+      throw new NotFoundException(`Exam with ID "${id}" not found`);
+    }
+
+    const updatedExam = await prisma.exam.update({
+      where: { id },
+      data: {
+        status: ResultStatus.PUBLISHED,
+        resultPublishedAt: new Date(),
+      },
+      include: {
+        _count: {
+          select: { results: true },
+        },
+      },
+    });
+
+    return {
+      message: `Result for "${exam.name}" has been published successfully`,
+      totalResults: updatedExam._count.results,
+      exam: updatedExam,
+    };
+  }
+
+  /**
+   * 5. Unpublish exam results
+   * Reverts status to DRAFT and resets resultPublishedAt
+   */
+  async unpublishExamResult(id: string) {
+    const exam = await prisma.exam.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { results: true },
+        },
+      },
+    });
+
+    if (!exam) {
+      throw new NotFoundException(`Exam with ID "${id}" not found`);
+    }
+
+    const updatedExam = await prisma.exam.update({
+      where: { id },
+      data: {
+        status: ResultStatus.DRAFT,
+        resultPublishedAt: null,
+      },
+      include: {
+        _count: {
+          select: { results: true },
+        },
+      },
+    });
+
+    return {
+      message: `Result for "${exam.name}" has been reverted to DRAFT`,
+      exam: updatedExam,
+    };
   }
 }

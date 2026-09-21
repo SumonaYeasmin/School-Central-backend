@@ -7,9 +7,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// ===============================
-// USER
-// ===============================
 model User {
   id        String   @id @default(cuid())
   name      String
@@ -20,73 +17,53 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
-// ===============================
-// SCHOOL CLASS
-// ===============================
 model SchoolClass {
   id                 String              @id @default(cuid())
   name               String              @unique
-  sections           Section[]
-  classSubjects      ClassSubject[]
-  students           Student[]
-  teacherAssignments TeacherAssignment[]
-  routines           ClassRoutine[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+  routines           ClassRoutine[]
+  classSubjects      ClassSubject[]
+  sections           Section[]
+  students           Student[]
+  teacherAssignments TeacherAssignment[]
 }
 
-// ===============================
-// ACADEMIC GROUP
-// Science / Humanities / Business Studies
-// ===============================
 model AcademicGroup {
   id            String         @id @default(cuid())
   name          String         @unique
-  classSubjects ClassSubject[]
-  students      Student[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+  classSubjects ClassSubject[]
+  students      Student[]
 }
 
-// ===============================
-// SECTION
-// A / B / C
-// ===============================
 model Section {
   id                 String              @id @default(cuid())
   name               String
   classId            String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  routines           ClassRoutine[]
   class              SchoolClass         @relation(fields: [classId], references: [id], onDelete: Cascade)
   students           Student[]
   teacherAssignments TeacherAssignment[]
-  routines           ClassRoutine[]
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
 
   @@unique([classId, name])
 }
 
-// ===============================
-// SUBJECT
-// ===============================
 model Subject {
   id                 String              @id @default(cuid())
   name               String              @unique
   code               String?
-  classSubjects      ClassSubject[]
-  teacherAssignments TeacherAssignment[]
-  routines           ClassRoutine[]
-  results            Result[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+  routines           ClassRoutine[]
+  classSubjects      ClassSubject[]
+  results            Result[]
+  teacherAssignments TeacherAssignment[]
 }
 
-// ===============================
-// CLASS SUBJECT
-// কোন Class-এ কোন Subject থাকবে
-// Group-specific Subject হলে groupId থাকবে
-// Common Subject হলে groupId = null
-// ===============================
 model ClassSubject {
   id           String         @id @default(cuid())
   classId      String
@@ -94,20 +71,17 @@ model ClassSubject {
   subjectId    String
   isCompulsory Boolean        @default(true)
   isOptional   Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   class        SchoolClass    @relation(fields: [classId], references: [id], onDelete: Cascade)
   group        AcademicGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
   subject      Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
 
   @@index([classId])
   @@index([groupId])
   @@index([subjectId])
 }
 
-// ===============================
-// STUDENT
-// ===============================
 model Student {
   id            String          @id @default(cuid())
   studentId     String          @unique
@@ -121,52 +95,42 @@ model Student {
   roll          String
   admissionDate DateTime        @default(now())
   status        StudentStatus   @default(ACTIVE)
-  class         SchoolClass     @relation(fields: [classId], references: [id], onDelete: Restrict)
-  section       Section         @relation(fields: [sectionId], references: [id], onDelete: Restrict)
-  group         AcademicGroup?  @relation(fields: [groupId], references: [id], onDelete: Restrict)
-  parents       ParentStudent[]
-  results       Result[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
+  parents       ParentStudent[]
+  results       Result[]
+  class         SchoolClass     @relation(fields: [classId], references: [id])
+  group         AcademicGroup?  @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  section       Section         @relation(fields: [sectionId], references: [id])
 
   @@unique([classId, sectionId, roll])
 }
 
-// ===============================
-// PARENT
-// ===============================
 model Parent {
   id        String          @id @default(cuid())
   name      String
   phone     String
   email     String?
   address   String?
-  students  ParentStudent[]
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
+  students  ParentStudent[]
 }
 
-// ===============================
-// PARENT ↔ STUDENT
-// Many-to-Many Relation
-// ===============================
 model ParentStudent {
   id        String         @id @default(cuid())
   parentId  String
   studentId String
   relation  ParentRelation
   isPrimary Boolean        @default(false)
-  parent    Parent         @relation(fields: [parentId], references: [id], onDelete: Cascade)
-  student   Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+  parent    Parent         @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student   Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([parentId, studentId])
 }
 
-// ===============================
-// TEACHER
-// ===============================
 model Teacher {
   id          String              @id @default(cuid())
   teacherId   String              @unique
@@ -176,16 +140,12 @@ model Teacher {
   designation String
   department  String?
   joiningDate DateTime?           @default(now())
-  assignments TeacherAssignment[]
-  routines    ClassRoutine[]
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
+  routines    ClassRoutine[]
+  assignments TeacherAssignment[]
 }
 
-// ===============================
-// TEACHER ASSIGNMENT
-// কোন Teacher কোন Class / Section / Subject পড়াবে
-// ===============================
 model TeacherAssignment {
   id             String      @id @default(cuid())
   teacherId      String
@@ -193,19 +153,16 @@ model TeacherAssignment {
   sectionId      String
   subjectId      String
   isClassTeacher Boolean     @default(false)
-  teacher        Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
   class          SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
   section        Section     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   subject        Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  teacher        Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
   @@unique([classId, sectionId, subjectId])
 }
 
-// ===============================
-// CLASS ROUTINE
-// ===============================
 model ClassRoutine {
   id         String      @id @default(cuid())
   day        DayOfWeek
@@ -216,54 +173,42 @@ model ClassRoutine {
   sectionId  String
   subjectId  String
   teacherId  String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
   class      SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
   section    Section     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   subject    Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   teacher    Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
 
   @@index([day, classId, sectionId])
   @@index([day, teacherId])
 }
 
-// ===============================
-// EXAM
-// ===============================
 model Exam {
   id          String     @id @default(cuid())
   name        String
   year        Int
-  status      ExamStatus @default(DRAFT)
-  publishedAt DateTime?
-
-  results Result[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status      ResultStatus @default(DRAFT)
+  resultPublishedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  results     Result[]
 
   @@unique([name, year])
 }
 
-// ===============================
-// RESULT
-// ===============================
 model Result {
-  id        String @id @default(cuid())
-
+  id        String   @id @default(cuid())
   studentId String
   examId    String
   subjectId String
-
   marks     Float
-  fullMarks Float
-
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
-  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  fullMarks Float
+  exam      Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, examId, subjectId])
   @@index([studentId])
@@ -271,18 +216,10 @@ model Result {
   @@index([subjectId])
 }
 
-// ===============================
-// ENUMS
-// ===============================
 enum UserRole {
   ADMIN
   TEACHER
   PARENT
-}
-
-enum ExamStatus {
-  DRAFT
-  PUBLISHED
 }
 
 enum DayOfWeek {
@@ -312,4 +249,9 @@ enum ParentRelation {
   MOTHER
   GUARDIAN
   OTHER
+}
+
+enum ResultStatus {
+  DRAFT
+  PUBLISHED
 }

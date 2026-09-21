@@ -49,22 +49,9 @@ export class ResultController {
     });
   }
 
-  @Get('student-report')
-  @ApiOperation({
-    summary: 'Get complete student marksheet & GPA report card for an exam',
-  })
-  @ApiQuery({ name: 'studentId', required: true, description: 'Student Database ID or Code (e.g. S01)' })
-  @ApiQuery({ name: 'examId', required: true, description: 'Exam Database ID' })
-  getStudentReport(
-    @Query('studentId') studentId: string,
-    @Query('examId') examId: string,
-  ) {
-    return this.resultService.getStudentExamResult(studentId, examId);
-  }
-
   @Get('student/:studentId/exam/:examId')
   @ApiOperation({
-    summary: 'Get complete student marksheet & GPA report card for an exam (REST path)',
+    summary: 'Get complete student marksheet & GPA report card for an exam',
   })
   @ApiParam({ name: 'studentId', description: 'Student Database ID or Code (e.g. S01)' })
   @ApiParam({ name: 'examId', description: 'Exam Database ID' })
