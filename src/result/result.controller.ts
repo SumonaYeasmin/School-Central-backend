@@ -29,8 +29,8 @@ export class ResultController {
     summary: 'Get all results (with optional filters: exam, student, subject, class, section)',
   })
   @ApiQuery({ name: 'examId', required: false, description: 'Filter by Exam ID' })
-  @ApiQuery({ name: 'studentId', required: false, description: 'Filter by Student ID / Student Code (e.g. S01)' })
-  @ApiQuery({ name: 'subjectId', required: false, description: 'Filter by Subject ID / Code / Name (e.g. সপ্তবর্ণা)' })
+  @ApiQuery({ name: 'studentId', required: false, description: 'Filter by Student ID / Code (e.g. S01)' })
+  @ApiQuery({ name: 'subjectId', required: false, description: 'Filter by Subject ID / Code / Name' })
   @ApiQuery({ name: 'classId', required: false, description: 'Filter by Class ID' })
   @ApiQuery({ name: 'sectionId', required: false, description: 'Filter by Section ID' })
   getAllResults(
@@ -47,6 +47,32 @@ export class ResultController {
       classId,
       sectionId,
     });
+  }
+
+  @Get('student-report')
+  @ApiOperation({
+    summary: 'Get complete student marksheet & GPA report card for an exam',
+  })
+  @ApiQuery({ name: 'studentId', required: true, description: 'Student Database ID or Code (e.g. S01)' })
+  @ApiQuery({ name: 'examId', required: true, description: 'Exam Database ID' })
+  getStudentReport(
+    @Query('studentId') studentId: string,
+    @Query('examId') examId: string,
+  ) {
+    return this.resultService.getStudentExamResult(studentId, examId);
+  }
+
+  @Get('student/:studentId/exam/:examId')
+  @ApiOperation({
+    summary: 'Get complete student marksheet & GPA report card for an exam (REST path)',
+  })
+  @ApiParam({ name: 'studentId', description: 'Student Database ID or Code (e.g. S01)' })
+  @ApiParam({ name: 'examId', description: 'Exam Database ID' })
+  getStudentExamResult(
+    @Param('studentId') studentId: string,
+    @Param('examId') examId: string,
+  ) {
+    return this.resultService.getStudentExamResult(studentId, examId);
   }
 
   @Get(':id')
