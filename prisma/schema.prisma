@@ -76,6 +76,7 @@ model Subject {
   classSubjects      ClassSubject[]
   teacherAssignments TeacherAssignment[]
   routines           ClassRoutine[]
+  results            Result[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 }
@@ -124,6 +125,7 @@ model Student {
   section       Section         @relation(fields: [sectionId], references: [id], onDelete: Restrict)
   group         AcademicGroup?  @relation(fields: [groupId], references: [id], onDelete: Restrict)
   parents       ParentStudent[]
+  results       Result[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
@@ -226,12 +228,60 @@ model ClassRoutine {
 }
 
 // ===============================
+// EXAM
+// ===============================
+model Exam {
+  id          String     @id @default(cuid())
+  name        String
+  year        Int
+  status      ExamStatus @default(DRAFT)
+  publishedAt DateTime?
+
+  results Result[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, year])
+}
+
+// ===============================
+// RESULT
+// ===============================
+model Result {
+  id        String @id @default(cuid())
+
+  studentId String
+  examId    String
+  subjectId String
+
+  marks     Float
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, examId, subjectId])
+  @@index([studentId])
+  @@index([examId])
+  @@index([subjectId])
+}
+
+// ===============================
 // ENUMS
 // ===============================
 enum UserRole {
   ADMIN
   TEACHER
   PARENT
+}
+
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
 }
 
 enum DayOfWeek {
