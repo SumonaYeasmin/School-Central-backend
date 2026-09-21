@@ -49,17 +49,33 @@ export class ResultController {
     });
   }
 
+  @Get('public/student/:studentId/exam/:examId')
+  @ApiOperation({
+    summary: 'Public / Parent view: Get student exam marksheet (Strictly checks if exam is PUBLISHED)',
+  })
+  @ApiParam({ name: 'studentId', description: 'Student Database ID or Code (e.g. S01)' })
+  @ApiParam({ name: 'examId', description: 'Exam Database ID' })
+  getPublicStudentExamResult(
+    @Param('studentId') studentId: string,
+    @Param('examId') examId: string,
+  ) {
+    return this.resultService.getStudentExamResult(studentId, examId, true);
+  }
+
   @Get('student/:studentId/exam/:examId')
   @ApiOperation({
     summary: 'Get complete student marksheet & GPA report card for an exam',
   })
   @ApiParam({ name: 'studentId', description: 'Student Database ID or Code (e.g. S01)' })
   @ApiParam({ name: 'examId', description: 'Exam Database ID' })
+  @ApiQuery({ name: 'isPublic', required: false, type: Boolean, description: 'Set true for Parent/Public view (requires PUBLISHED status)' })
   getStudentExamResult(
     @Param('studentId') studentId: string,
     @Param('examId') examId: string,
+    @Query('isPublic') isPublic?: string,
   ) {
-    return this.resultService.getStudentExamResult(studentId, examId);
+    const isPublicBool = isPublic === 'true' || isPublic === '1';
+    return this.resultService.getStudentExamResult(studentId, examId, isPublicBool);
   }
 
   @Get(':id')

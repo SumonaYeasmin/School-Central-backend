@@ -7,6 +7,7 @@ import {
 import prisma from '../shared/prisma.js';
 import { CreateResultDto } from './dto/create-result.dto.js';
 import { UpdateResultDto } from './dto/update-result.dto.js';
+import { ResultStatus } from '../generated/prisma/enums.js';
 
 @Injectable()
 export class ResultService {
@@ -206,8 +207,13 @@ export class ResultService {
 
   /**
    * 3. Get single student complete exam result (with GPA, Grades, and Subject Breakdown)
+   * If isPublicView is true (for Parent/Public), it strictly checks if exam is PUBLISHED.
    */
-  async getStudentExamResult(studentId: string, examId: string) {
+  async getStudentExamResult(
+    studentId: string,
+    examId: string,
+    isPublicView = false,
+  ) {
     // 1. Student exists check (supports both DB id and studentId code like "S01")
     const student = await prisma.student.findFirst({
       where: {
@@ -231,6 +237,13 @@ export class ResultService {
 
     if (!exam) {
       throw new NotFoundException(`Exam with ID "${examId}" not found`);
+    }
+
+    // 3. Status check: If public/parent view and exam status is DRAFT, deny access
+    if (isPublicView && exam.status !== ResultStatus.PUBLISHED) {
+      throw new BadRequestException(
+        `Results for "${exam.name}" have not been published yet. Status is DRAFT.`,
+      );
     }
 
     // 3. Fetch all subject results for this student in this exam
