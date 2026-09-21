@@ -69,9 +69,45 @@ export class ResultService {
     });
 
     if (existingResult) {
-      throw new ConflictException(
-        'Result already exists for this student, exam, and subject',
-      );
+      const updatedResult = await prisma.result.update({
+        where: { id: existingResult.id },
+        data: {
+          marks,
+          fullMarks,
+        },
+        include: {
+          student: {
+            select: {
+              id: true,
+              studentId: true,
+              name: true,
+              roll: true,
+              class: { select: { id: true, name: true } },
+              section: { select: { id: true, name: true } },
+            },
+          },
+          exam: {
+            select: {
+              id: true,
+              name: true,
+              year: true,
+              status: true,
+            },
+          },
+          subject: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+        },
+      });
+
+      return {
+        message: 'Result updated successfully',
+        result: updatedResult,
+      };
     }
 
     // Create result
