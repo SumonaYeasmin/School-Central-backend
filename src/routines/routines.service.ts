@@ -76,9 +76,12 @@ export class RoutinesService {
       where: { classId, subjectId },
     });
     if (!classSubject) {
-      throw new BadRequestException(
-        `Subject "${subject.name}" is not assigned to class "${schoolClass.name}"`,
-      );
+      await prisma.classSubject.create({
+        data: {
+          classId,
+          subjectId,
+        },
+      });
     }
 
     // 4. Section Conflict Check: Does this Section already have another class at this time?
