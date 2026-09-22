@@ -282,7 +282,28 @@ export class ResultService {
       );
     }
 
-    // 3. Fetch all subject results for this student in this exam
+    // 4. Fetch all subjects belonging to this student's class (Core + Group specific)
+    const classSubjects = await prisma.classSubject.findMany({
+      where: {
+        classId: student.classId,
+        ...(student.groupId
+          ? {
+              OR: [{ groupId: null }, { groupId: student.groupId }],
+            }
+          : {}),
+      },
+      include: {
+        subject: true,
+        group: true,
+      },
+      orderBy: [
+        { isCompulsory: 'desc' },
+        { isOptional: 'asc' },
+        { subject: { name: 'asc' } },
+      ],
+    });
+
+    // 5. Fetch all entered subject results for this student in this exam
     const results = await prisma.result.findMany({
       where: {
         studentId: student.id,
@@ -298,78 +319,164 @@ export class ResultService {
       },
     });
 
-    if (results.length === 0) {
+    if (results.length === 0 && isPublicView) {
       throw new NotFoundException(
         'No result found for this student in this exam',
       );
     }
 
-    // 4. Total marks and total full marks
-    let totalMarks = 0;
-    let totalFullMarks = 0;
+    // Create a fast lookup map for results by subjectId and subject name
+    const resultMap = new Map<string, any>();
+    results.forEach((r) => {
+      resultMap.set(r.subjectId, r);
+      if (r.subject?.id) resultMap.set(r.subject.id, r);
+      if (r.subject?.name) resultMap.set(r.subject.name.toLowerCase().trim(), r);
+    });
 
-    for (const result of results) {
-      totalMarks += result.marks;
-      totalFullMarks += result.fullMarks;
+    // 6. Build the complete list of subjects for this student's class
+    let targetSubjectsList: Array<{
+      id: string;
+      name: string;
+      code: string | null;
+      isCompulsory: boolean;
+      isOptional: boolean;
+    }> = [];
+
+    if (classSubjects.length > 0) {
+      targetSubjectsList = classSubjects.map((cs) => ({
+        id: cs.subject.id,
+        name: cs.subject.name,
+        code: cs.subject.code,
+        isCompulsory: cs.isCompulsory,
+        isOptional: cs.isOptional,
+      }));
+    } else if (results.length > 0) {
+      targetSubjectsList = results.map((r) => ({
+        id: r.subject.id,
+        name: r.subject.name,
+        code: r.subject.code,
+        isCompulsory: true,
+        isOptional: false,
+      }));
+    } else {
+      const allSubjects = await prisma.subject.findMany({
+        orderBy: { name: 'asc' },
+      });
+      targetSubjectsList = allSubjects.map((s) => ({
+        id: s.id,
+        name: s.name,
+        code: s.code,
+        isCompulsory: true,
+        isOptional: false,
+      }));
     }
 
-    // 5. Calculate Grade and GPA for each subject
-    const subjects = results.map((result) => {
-      const percentage = (result.marks / result.fullMarks) * 100;
+    // Ensure any entered result subject is also included
+    const subjectIdSet = new Set(targetSubjectsList.map((s) => s.id));
+    for (const r of results) {
+      if (r.subject && !subjectIdSet.has(r.subject.id)) {
+        targetSubjectsList.push({
+          id: r.subject.id,
+          name: r.subject.name,
+          code: r.subject.code,
+          isCompulsory: true,
+          isOptional: false,
+        });
+        subjectIdSet.add(r.subject.id);
+      }
+    }
 
-      let grade = '';
+    // 7. Calculate Subject Breakdown, Total Marks, Full Marks, and GPA
+    let totalMarks = 0;
+    let totalFullMarks = 0;
+    let totalGpa = 0;
+    let enteredCount = 0;
+
+    const subjects = targetSubjectsList.map((sub) => {
+      const res =
+        resultMap.get(sub.id) ||
+        resultMap.get(sub.name.toLowerCase().trim());
+      const isEntered = res !== undefined && res !== null;
+      const marks = isEntered ? res.marks : null;
+      const fullMarks = isEntered ? res.fullMarks : 100;
+      const passMarks = 33;
+
+      let grade = '-';
       let gpa = 0;
 
-      if (percentage >= 80) {
-        grade = 'A+';
-        gpa = 5;
-      } else if (percentage >= 70) {
-        grade = 'A';
-        gpa = 4;
-      } else if (percentage >= 60) {
-        grade = 'A-';
-        gpa = 3.5;
-      } else if (percentage >= 50) {
-        grade = 'B';
-        gpa = 3;
-      } else if (percentage >= 40) {
-        grade = 'C';
-        gpa = 2;
-      } else if (percentage >= 33) {
-        grade = 'D';
-        gpa = 1;
+      if (isEntered && marks !== null) {
+        totalMarks += marks;
+        totalFullMarks += fullMarks;
+        enteredCount++;
+
+        const percentage = (marks / fullMarks) * 100;
+        if (percentage >= 80) {
+          grade = 'A+';
+          gpa = 5;
+        } else if (percentage >= 70) {
+          grade = 'A';
+          gpa = 4;
+        } else if (percentage >= 60) {
+          grade = 'A-';
+          gpa = 3.5;
+        } else if (percentage >= 50) {
+          grade = 'B';
+          gpa = 3;
+        } else if (percentage >= 40) {
+          grade = 'C';
+          gpa = 2;
+        } else if (percentage >= 33) {
+          grade = 'D';
+          gpa = 1;
+        } else {
+          grade = 'F';
+          gpa = 0;
+        }
+        totalGpa += gpa;
       } else {
-        grade = 'F';
-        gpa = 0;
+        totalFullMarks += fullMarks;
       }
 
       return {
-        subjectId: result.subjectId,
-        subjectName: result.subject.name,
-        marks: result.marks,
-        fullMarks: result.fullMarks,
+        subjectId: sub.id,
+        subjectName: sub.name,
+        subjectCode: sub.code,
+        marks,
+        fullMarks,
+        passMarks,
         grade,
         gpa,
+        isEntered,
+        isCompulsory: sub.isCompulsory,
+        isOptional: sub.isOptional,
       };
     });
 
-    // 6. Overall GPA calculation
-    let totalGpa = 0;
+    const overallGpa =
+      enteredCount > 0 ? Number((totalGpa / enteredCount).toFixed(2)) : 0;
 
-    for (const subject of subjects) {
-      totalGpa += subject.gpa;
+    let overallGrade = '-';
+    if (enteredCount > 0) {
+      if (overallGpa >= 5.0) overallGrade = 'A+';
+      else if (overallGpa >= 4.0) overallGrade = 'A';
+      else if (overallGpa >= 3.5) overallGrade = 'A-';
+      else if (overallGpa >= 3.0) overallGrade = 'B';
+      else if (overallGpa >= 2.0) overallGrade = 'C';
+      else if (overallGpa >= 1.0) overallGrade = 'D';
+      else overallGrade = 'F';
     }
 
-    const overallGpa = Number((totalGpa / subjects.length).toFixed(2));
-
-    // 7. Final response
+    // 8. Final response
     return {
       student: {
         id: student.id,
         studentId: student.studentId,
         name: student.name,
+        roll: student.roll,
         class: student.class?.name || null,
+        classId: student.classId,
         section: student.section?.name || null,
+        sectionId: student.sectionId,
         group: student.group?.name ?? null,
       },
 
@@ -384,7 +491,11 @@ export class ResultService {
 
       totalMarks,
       totalFullMarks,
+      totalSubjects: subjects.length,
+      enteredSubjects: enteredCount,
       gpa: overallGpa,
+      overallGpa,
+      overallGrade,
     };
   }
 
