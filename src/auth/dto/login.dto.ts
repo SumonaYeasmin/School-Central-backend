@@ -4,11 +4,11 @@ import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class LoginDto {
   @ApiProperty({
-    example: 'sumona2@gmail.com',
-    description: 'User email address',
+    example: 'teacher@gmail.com',
+    description: 'User email address or Teacher ID (e.g. TCH-2026-001)',
   })
-  @IsNotEmpty({ message: 'Email cannot be empty' })
-  @IsEmail({}, { message: 'Please provide a valid email address' })
+  @IsNotEmpty({ message: 'Email or Teacher ID cannot be empty' })
+  @IsString({ message: 'Email or Teacher ID must be a string' })
   email: string;
 
   @ApiProperty({

@@ -406,8 +406,337 @@ async function main() {
 
   console.log('✅ Optional & Elective subjects mapped with codes');
 
+  // ==========================================
+  // 14. ENSURE USER ACCOUNTS (Admin & Teacher)
+  // ==========================================
+  console.log('\n👤 Ensuring Admin & Teacher User accounts...');
+  const defaultPasswordHash = '$2b$10$w60N1aE2b9tF8rFvI0g7c.e5t3s/L2P5G9jK7M1N3Q5S7U9W1Y3a2'; // Hashed password or generated
+
+  const adminUser = await prisma.user.upsert({
+    where: { email: 'admin@gmail.com' },
+    update: { role: 'ADMIN' },
+    create: {
+      name: 'Super Admin',
+      email: 'admin@gmail.com',
+      password: defaultPasswordHash,
+      role: 'ADMIN',
+    },
+  });
+
+  const teacherUser = await prisma.user.upsert({
+    where: { email: 'teacher@gmail.com' },
+    update: { role: 'TEACHER' },
+    create: {
+      name: 'Anisur Rahman',
+      email: 'teacher@gmail.com',
+      password: defaultPasswordHash,
+      role: 'TEACHER',
+    },
+  });
+
+  console.log('✅ Admin (admin@gmail.com) and Teacher (teacher@gmail.com) users ensured');
+
+  // ==========================================
+  // 15. ENSURE REALISTIC TEACHERS & THEIR USER ACCOUNTS
+  // ==========================================
+  console.log('\n👨‍🏫 Ensuring 12 Realistic Teachers & User Logins...');
+
+  const teachersSeedData = [
+    {
+      teacherId: 'TCH-2026-001',
+      name: 'Anisur Rahman',
+      email: 'teacher@gmail.com',
+      phone: '01711223344',
+      designation: 'Headmaster & Senior Mathematics Teacher',
+      department: 'Mathematics',
+    },
+    {
+      teacherId: 'TCH-2026-002',
+      name: 'Farhana Sultana',
+      email: 'farhana.sultana@school.com',
+      phone: '01812345678',
+      designation: 'Senior Bangla Teacher',
+      department: 'Bangla',
+    },
+    {
+      teacherId: 'TCH-2026-003',
+      name: 'Rafael Ortiz',
+      email: 'rafael.ortiz@school.com',
+      phone: '01912345679',
+      designation: 'Senior Science & Physics Faculty',
+      department: 'Science',
+    },
+    {
+      teacherId: 'TCH-2026-004',
+      name: 'Priya Nair',
+      email: 'priya.nair@school.com',
+      phone: '01798765432',
+      designation: 'Senior English Teacher',
+      department: 'English',
+    },
+    {
+      teacherId: 'TCH-2026-005',
+      name: 'Robert Kiyosaki',
+      email: 'robert.k@school.com',
+      phone: '01655443322',
+      designation: 'Senior Commerce Teacher',
+      department: 'Commerce',
+    },
+    {
+      teacherId: 'TCH-2026-006',
+      name: 'Marie Curie',
+      email: 'marie.curie@school.com',
+      phone: '01733445566',
+      designation: 'Senior Chemistry Teacher',
+      department: 'Science',
+    },
+    {
+      teacherId: 'TCH-2026-007',
+      name: 'Dr. Charles Darwin',
+      email: 'charles.darwin@school.com',
+      phone: '01877665544',
+      designation: 'Senior Biology Teacher',
+      department: 'Science',
+    },
+    {
+      teacherId: 'TCH-2026-008',
+      name: 'Kabir Ahmed',
+      email: 'kabir.ahmed@school.com',
+      phone: '01511223344',
+      designation: 'Senior History & Social Science Teacher',
+      department: 'Humanities',
+    },
+    {
+      teacherId: 'TCH-2026-009',
+      name: 'Nasreen Akter',
+      email: 'nasreen.akter@school.com',
+      phone: '01999887766',
+      designation: 'ICT Lecturer',
+      department: 'ICT',
+    },
+    {
+      teacherId: 'TCH-2026-010',
+      name: 'Sarah Jenkins',
+      email: 'sarah.jenkins@school.com',
+      phone: '01744556677',
+      designation: 'Assistant Teacher (General Science & Geography)',
+      department: 'Humanities',
+    },
+    {
+      teacherId: 'TCH-2026-011',
+      name: 'Mahbubur Rahman',
+      email: 'mahbub.rahman@school.com',
+      phone: '01855667788',
+      designation: 'Senior Religious & Moral Education Teacher',
+      department: 'Humanities',
+    },
+    {
+      teacherId: 'TCH-2026-012',
+      name: 'Subrata Roy',
+      email: 'subrata.roy@school.com',
+      phone: '01611223355',
+      designation: 'Physical Education & Health Instructor',
+      department: 'Physical Education',
+    },
+  ];
+
+  const teacherRecords: Record<string, any> = {};
+
+  for (const t of teachersSeedData) {
+    // 1. Ensure Teacher record
+    const teacher = await prisma.teacher.upsert({
+      where: { teacherId: t.teacherId },
+      update: {
+        name: t.name,
+        email: t.email,
+        phone: t.phone,
+        designation: t.designation,
+        department: t.department,
+      },
+      create: {
+        teacherId: t.teacherId,
+        name: t.name,
+        email: t.email,
+        phone: t.phone,
+        designation: t.designation,
+        department: t.department,
+      },
+    });
+
+    // 2. Ensure User Login Account for this Teacher
+    if (t.email) {
+      await prisma.user.upsert({
+        where: { email: t.email },
+        update: {
+          name: t.name,
+          role: 'TEACHER',
+        },
+        create: {
+          name: t.name,
+          email: t.email,
+          password: defaultPasswordHash,
+          role: 'TEACHER',
+        },
+      });
+    }
+
+    teacherRecords[t.name] = teacher;
+  }
+
+  const allTeachersList = Object.values(teacherRecords);
+  console.log(`✅ ${allTeachersList.length} Teachers & User Login accounts ensured in database`);
+
+  // Helper to pick appropriate subject teacher
+  const findTeacherForSubject = (subjectName: string, fallbackIdx = 0) => {
+    const s = subjectName.toLowerCase();
+    if (s.includes('বাংলা') || s.includes('bangla')) return teacherRecords['Farhana Sultana'] || allTeachersList[fallbackIdx % allTeachersList.length];
+    if (s.includes('english')) return teacherRecords['Priya Nair'] || allTeachersList[fallbackIdx % allTeachersList.length];
+    if (s.includes('গণিত') || s.includes('math')) return teacherRecords['Anisur Rahman'] || allTeachersList[fallbackIdx % allTeachersList.length];
+    if (s.includes('পদার্থ') || s.includes('phys')) return teacherRecords['Rafael Ortiz'] || allTeachersList[fallbackIdx % allTeachersList.length];
+    if (s.includes('রসায়ন') || s.includes('রসায়ন') || s.includes('chem')) return teacherRecords['Marie Curie'] || allTeachersList[fallbackIdx % allTeachersList.length];
+    if (s.includes('জীব') || s.includes('bio')) return teacherRecords['Dr. Charles Darwin'] || allTeachersList[fallbackIdx % allTeachersList.length];
+    if (s.includes('হিসাব') || s.includes('ফিন্যান্স') || s.includes('ব্যবসায়') || s.includes('ব্যবসায়')) return teacherRecords['Robert Kiyosaki'] || allTeachersList[fallbackIdx % allTeachersList.length];
+    if (s.includes('ইতিহাস') || s.includes('বিশ্বপরিচয়') || s.includes('বিশ্বপরিচয়')) return teacherRecords['Kabir Ahmed'] || allTeachersList[fallbackIdx % allTeachersList.length];
+    if (s.includes('তথ্য') || s.includes('ict')) return teacherRecords['Nasreen Akter'] || allTeachersList[fallbackIdx % allTeachersList.length];
+    if (s.includes('ধর্ম') || s.includes('moral')) return teacherRecords['Mahbubur Rahman'] || allTeachersList[fallbackIdx % allTeachersList.length];
+    if (s.includes('শারীরিক') || s.includes('স্বাস্থ্য')) return teacherRecords['Subrata Roy'] || allTeachersList[fallbackIdx % allTeachersList.length];
+    if (s.includes('বিজ্ঞান') || s.includes('ভূগোল')) return teacherRecords['Sarah Jenkins'] || allTeachersList[fallbackIdx % allTeachersList.length];
+    return allTeachersList[fallbackIdx % allTeachersList.length];
+  };
+
+  // ==========================================
+  // 16. ENSURE TEACHER ASSIGNMENTS (Subject & Class Teachers)
+  // ==========================================
+  console.log('\n📝 Assigning Teachers to Classes, Sections & Subjects...');
+
+  for (const [className, classObj] of Object.entries(classes)) {
+    const classSections = await prisma.section.findMany({
+      where: { classId: classObj.id },
+    });
+
+    const classSubjectsList = await prisma.classSubject.findMany({
+      where: { classId: classObj.id },
+      include: { subject: true },
+    });
+
+    for (let secIdx = 0; secIdx < classSections.length; secIdx++) {
+      const section = classSections[secIdx];
+      const isSecA = section.name.toLowerCase().includes('a');
+
+      // Section A Class Teacher: Anisur Rahman; Section B Class Teacher: Priya Nair
+      const classTeacher = isSecA
+        ? (teacherRecords['Anisur Rahman'] || allTeachersList[0])
+        : (teacherRecords['Priya Nair'] || allTeachersList[1 % allTeachersList.length]);
+
+      // Assign major subjects
+      for (let sIdx = 0; sIdx < Math.min(classSubjectsList.length, 12); sIdx++) {
+        const cs = classSubjectsList[sIdx];
+        const assignedTeacher = sIdx === 0 ? classTeacher : findTeacherForSubject(cs.subject.name, sIdx);
+        const isCT = (sIdx === 0 && assignedTeacher.id === classTeacher.id);
+
+        await prisma.teacherAssignment.upsert({
+          where: {
+            classId_sectionId_subjectId: {
+              classId: classObj.id,
+              sectionId: section.id,
+              subjectId: cs.subjectId,
+            },
+          },
+          update: {
+            teacherId: assignedTeacher.id,
+            isClassTeacher: isCT,
+          },
+          create: {
+            classId: classObj.id,
+            sectionId: section.id,
+            subjectId: cs.subjectId,
+            teacherId: assignedTeacher.id,
+            isClassTeacher: isCT,
+          },
+        });
+      }
+    }
+  }
+
+  console.log('✅ Teacher assignments successfully created for all classes & sections');
+
+  // ==========================================
+  // 17. ENSURE CLASS ROUTINES (Weekly timetable for all classes)
+  // ==========================================
+  console.log('\n🗓️ Seeding Weekly Class Routines (Sunday to Thursday)...');
+
+  // Clean old routines to ensure crisp fresh schedule
+  await prisma.classRoutine.deleteMany({});
+
+  const routineDays = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY'] as const;
+  const routineSlots = [
+    { start: '10:00', end: '11:00' },
+    { start: '11:00', end: '12:00' },
+    { start: '12:00', end: '13:00' },
+    { start: '14:00', end: '15:00' },
+    { start: '15:00', end: '16:00' },
+  ];
+
+  let totalRoutinesCount = 0;
+
+  const classEntries = Object.entries(classes);
+  for (let cIdx = 0; cIdx < classEntries.length; cIdx++) {
+    const [className, classObj] = classEntries[cIdx];
+    const classSections = await prisma.section.findMany({
+      where: { classId: classObj.id },
+    });
+
+    const classSubjectsList = await prisma.classSubject.findMany({
+      where: { classId: classObj.id },
+      include: { subject: true },
+    });
+
+    if (classSubjectsList.length === 0) continue;
+
+    for (let secIdx = 0; secIdx < classSections.length; secIdx++) {
+      const section = classSections[secIdx];
+      const baseRoom = `Room ${101 + cIdx * 10 + secIdx}`;
+
+      for (let dIdx = 0; dIdx < routineDays.length; dIdx++) {
+        const day = routineDays[dIdx];
+
+        for (let pIdx = 0; pIdx < routineSlots.length; pIdx++) {
+          const slot = routineSlots[pIdx];
+          const subIdx = (dIdx * 2 + pIdx + secIdx) % classSubjectsList.length;
+          const cs = classSubjectsList[subIdx];
+          const subject = cs.subject;
+          const teacher = findTeacherForSubject(subject.name, subIdx + dIdx + cIdx);
+
+          let roomNumber = baseRoom;
+          const sLower = subject.name.toLowerCase();
+          if (sLower.includes('পদার্থ') || sLower.includes('phys')) roomNumber = 'Physics Lab';
+          else if (sLower.includes('রসায়ন') || sLower.includes('রসায়ন') || sLower.includes('chem')) roomNumber = 'Chemistry Lab';
+          else if (sLower.includes('জীব') || sLower.includes('bio')) roomNumber = 'Biology Lab';
+          else if (sLower.includes('তথ্য') || sLower.includes('ict')) roomNumber = 'ICT Lab';
+
+          await prisma.classRoutine.create({
+            data: {
+              day: day as any,
+              startTime: slot.start,
+              endTime: slot.end,
+              roomNumber,
+              classId: classObj.id,
+              sectionId: section.id,
+              subjectId: subject.id,
+              teacherId: teacher.id,
+            },
+          });
+
+          totalRoutinesCount++;
+        }
+      }
+    }
+  }
+
+  console.log(`✅ Created ${totalRoutinesCount} Class Routine periods across Class 6 to 10 (Section A & B)`);
+
   console.log('');
-  console.log('🎉 Academic curriculum seed completed successfully! All students & parents remain 100% untouched.');
+  console.log('🎉 Academic curriculum, Teachers, Assignments, and Routines seed completed successfully!');
 }
 
 // ==========================================

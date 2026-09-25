@@ -11,29 +11,80 @@ export class AuthService {
   constructor(private readonly jwtService: JwtService) {}
 
   async login(loginDto: LoginDto) {
-    const { email, password } = loginDto;
+    const { email: identifier, password } = loginDto;
 
-    // 1. Find user by email
-    const user = await prisma.user.findUnique({
-      where: { email },
+    // 1. Find user by email directly
+    let user = await prisma.user.findUnique({
+      where: { email: identifier },
     });
 
+    // If not found, check if identifier is a teacherId or email in Teacher table
     if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
+      const teacher = await prisma.teacher.findFirst({
+        where: {
+          OR: [
+            { teacherId: { equals: identifier, mode: 'insensitive' } },
+            { email: { equals: identifier, mode: 'insensitive' } },
+          ],
+        },
+      });
+
+      if (teacher) {
+        const teacherEmail = teacher.email || `${teacher.teacherId.toLowerCase()}@school.com`;
+        user = await prisma.user.findUnique({
+          where: { email: teacherEmail },
+        });
+
+        // Auto-provision User login record for teacher if needed
+        if (!user) {
+          const hashedPassword = await bcrypt.hash('123456', 10);
+          user = await prisma.user.create({
+            data: {
+              name: teacher.name,
+              email: teacherEmail,
+              password: hashedPassword,
+              role: UserRole.TEACHER,
+            },
+          });
+        }
+      }
+    }
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid email, teacher ID, or password');
     }
 
     // 2. Validate password
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid email, teacher ID, or password');
     }
 
-    // 3. Generate JWT Token
+    // 3. If user is a TEACHER, fetch their teacher details
+    let teacherInfo: any = null;
+    if (user.role === UserRole.TEACHER) {
+      teacherInfo = await prisma.teacher.findFirst({
+        where: {
+          email: { equals: user.email, mode: 'insensitive' },
+        },
+        select: {
+          id: true,
+          teacherId: true,
+          name: true,
+          phone: true,
+          designation: true,
+          department: true,
+        },
+      });
+    }
+
+    // 4. Generate JWT Token
     const payload = {
       sub: user.id,
       email: user.email,
       role: user.role,
+      teacherId: teacherInfo?.teacherId,
     };
 
     return {
@@ -41,9 +92,13 @@ export class AuthService {
       accessToken: this.jwtService.sign(payload),
       user: {
         id: user.id,
-        name: user.name,
+        name: teacherInfo?.name || user.name,
         email: user.email,
         role: user.role,
+        teacherId: teacherInfo?.teacherId,
+        designation: teacherInfo?.designation,
+        department: teacherInfo?.department,
+        phone: teacherInfo?.phone,
       },
     };
   }
