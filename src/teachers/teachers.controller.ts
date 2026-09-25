@@ -34,16 +34,23 @@ export class TeachersController {
   }
 
   @Get('my-assignments')
-  // @Roles(UserRole.TEACHER)
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @ApiBearerAuth()
   @ApiOperation({ summary: 'Get logged-in teacher assignments (classes, sections & subjects)' })
   @ApiQuery({ name: 'email', required: false, description: 'Teacher email (for hassle-free testing)' })
   getMyAssignments(
     @Query('email') email?: string,
     @Request() req?: any,
   ) {
-    const targetEmail = email || req?.user?.email;
+    let targetEmail = email || req?.user?.email;
+    if (!targetEmail && req?.headers?.authorization) {
+      try {
+        const token = req.headers.authorization.replace('Bearer ', '').trim();
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          targetEmail = payload?.email || payload?.teacherId;
+        }
+      } catch (e) {}
+    }
     return this.teachersService.getMyAssignments(targetEmail);
   }
 

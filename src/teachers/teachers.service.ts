@@ -225,11 +225,18 @@ export class TeachersService {
           name: s.section.name,
         },
         parents: s.parents.map((p) => ({
-          id: p.parent.id,
-          name: p.parent.name,
-          phone: p.parent.phone,
+          id: p.id,
           relation: p.relation,
           isPrimary: p.isPrimary,
+          name: p.parent?.name,
+          phone: p.parent?.phone,
+          parent: {
+            id: p.parent?.id,
+            name: p.parent?.name,
+            phone: p.parent?.phone,
+            email: p.parent?.email,
+            address: p.parent?.address,
+          },
         })),
       })),
     };
