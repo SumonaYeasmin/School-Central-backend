@@ -65,9 +65,29 @@ export class ParentsService {
           include: {
             student: {
               include: {
-                class: true,
-                section: true,
+                class: {
+                  include: {
+                    classSubjects: {
+                      include: {
+                        subject: true,
+                      },
+                    },
+                  },
+                },
+                section: {
+                  include: {
+                    teacherAssignments: {
+                      where: { isClassTeacher: true },
+                      include: { teacher: true },
+                    },
+                  },
+                },
                 group: true,
+                parents: {
+                  include: {
+                    parent: true,
+                  },
+                },
               },
             },
           },
@@ -88,22 +108,55 @@ export class ParentsService {
       email: parent.email,
       address: parent.address,
       totalChildren: parent.students.length,
-      children: parent.students.map((ps) => ({
-        id: ps.student.id,
-        studentId: ps.student.studentId,
-        name: ps.student.name,
-        gender: ps.student.gender,
-        photo: ps.student.photo,
-        class: ps.student.class.name,
-        classId: ps.student.classId,
-        section: ps.student.section.name,
-        sectionId: ps.student.sectionId,
-        group: ps.student.group?.name ?? null,
-        roll: ps.student.roll,
-        relation: ps.relation,
-        isPrimaryContact: ps.isPrimary,
-        status: ps.student.status,
-      })),
+      children: parent.students.map((ps) => {
+        const student = ps.student;
+        const classTeacherAssignment = student.section.teacherAssignments.find(
+          (ta) => ta.isClassTeacher,
+        );
+
+        return {
+          id: student.id,
+          studentId: student.studentId,
+          name: student.name,
+          dateOfBirth: student.dateOfBirth,
+          gender: student.gender,
+          photo: student.photo,
+          admissionDate: student.admissionDate,
+          class: student.class.name,
+          classId: student.classId,
+          section: student.section.name,
+          sectionId: student.sectionId,
+          group: student.group?.name ?? null,
+          roll: student.roll,
+          relation: ps.relation,
+          isPrimaryContact: ps.isPrimary,
+          status: student.status,
+          classTeacher: classTeacherAssignment
+            ? {
+                name: classTeacherAssignment.teacher.name,
+                designation: classTeacherAssignment.teacher.designation,
+                phone: classTeacherAssignment.teacher.phone,
+                email: classTeacherAssignment.teacher.email,
+              }
+            : null,
+          guardians: student.parents.map((p) => ({
+            id: p.parent.id,
+            name: p.parent.name,
+            relation: p.relation,
+            phone: p.parent.phone,
+            email: p.parent.email,
+            address: p.parent.address,
+            isPrimary: p.isPrimary,
+          })),
+          subjects: student.class.classSubjects.map((cs) => ({
+            id: cs.subject.id,
+            name: cs.subject.name,
+            code: cs.subject.code,
+            isCompulsory: cs.isCompulsory,
+            isOptional: cs.isOptional,
+          })),
+        };
+      }),
     };
   }
 
