@@ -303,8 +303,6 @@ export class RoutinesService {
           DayOfWeek.TUESDAY,
           DayOfWeek.WEDNESDAY,
           DayOfWeek.THURSDAY,
-          DayOfWeek.FRIDAY,
-          DayOfWeek.SATURDAY,
         ];
 
     const timetable: Record<string, any[]> = {};
@@ -377,13 +375,17 @@ export class RoutinesService {
 
     const teacher = await prisma.teacher.findFirst({
       where: {
-        email: { equals: userEmail, mode: 'insensitive' },
+        OR: [
+          { email: { equals: userEmail, mode: 'insensitive' } },
+          { teacherId: { equals: userEmail, mode: 'insensitive' } },
+          { id: userEmail },
+        ],
       },
     });
 
     if (!teacher) {
       throw new NotFoundException(
-        `Teacher profile not found with email: ${userEmail}`,
+        `Teacher profile not found with identifier: ${userEmail}`,
       );
     }
 
@@ -409,7 +411,7 @@ export class RoutinesService {
       ],
     });
 
-    // Grouping by days for organized view
+    // Grouping by school days (Sunday through Thursday)
     const daysList: DayOfWeek[] = day
       ? [day]
       : [
@@ -418,8 +420,6 @@ export class RoutinesService {
           DayOfWeek.TUESDAY,
           DayOfWeek.WEDNESDAY,
           DayOfWeek.THURSDAY,
-          DayOfWeek.FRIDAY,
-          DayOfWeek.SATURDAY,
         ];
 
     const weeklySchedule: Record<string, any[]> = {};

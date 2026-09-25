@@ -102,7 +102,17 @@ export class RoutinesController {
     @Query('day') day?: DayOfWeek,
     @Request() req?: any,
   ) {
-    const targetEmail = email || req?.user?.email;
+    let targetEmail = email || req?.user?.email;
+    if (!targetEmail && req?.headers?.authorization) {
+      try {
+        const token = req.headers.authorization.replace('Bearer ', '').trim();
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          targetEmail = payload?.email || payload?.teacherId;
+        }
+      } catch (e) {}
+    }
     return this.routinesService.getMyRoutine(targetEmail, day);
   }
 

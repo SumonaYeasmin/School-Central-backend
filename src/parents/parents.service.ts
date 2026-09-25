@@ -50,9 +50,15 @@ export class ParentsService {
       throw new NotFoundException('Parent email is required');
     }
 
+    const cleanPhone = userEmail.includes('@') ? userEmail.split('@')[0] : userEmail;
+
     const parent = await prisma.parent.findFirst({
       where: {
-        email: { equals: userEmail, mode: 'insensitive' },
+        OR: [
+          { email: { equals: userEmail, mode: 'insensitive' } },
+          { phone: userEmail },
+          { phone: cleanPhone },
+        ],
       },
       include: {
         students: {
@@ -61,6 +67,7 @@ export class ParentsService {
               include: {
                 class: true,
                 section: true,
+                group: true,
               },
             },
           },
@@ -70,7 +77,7 @@ export class ParentsService {
 
     if (!parent) {
       throw new NotFoundException(
-        `Parent profile not found with email: ${userEmail}. Please ensure parent profile has matching email.`,
+        `Parent profile not found with identifier: ${userEmail}. Please ensure parent profile has matching email or phone.`,
       );
     }
 
@@ -78,14 +85,20 @@ export class ParentsService {
       parentId: parent.id,
       parentName: parent.name,
       phone: parent.phone,
+      email: parent.email,
+      address: parent.address,
       totalChildren: parent.students.length,
       children: parent.students.map((ps) => ({
         id: ps.student.id,
         studentId: ps.student.studentId,
         name: ps.student.name,
         gender: ps.student.gender,
+        photo: ps.student.photo,
         class: ps.student.class.name,
+        classId: ps.student.classId,
         section: ps.student.section.name,
+        sectionId: ps.student.sectionId,
+        group: ps.student.group?.name ?? null,
         roll: ps.student.roll,
         relation: ps.relation,
         isPrimaryContact: ps.isPrimary,
