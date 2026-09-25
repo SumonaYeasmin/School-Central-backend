@@ -53,6 +53,15 @@ export class CreateTeacherDto {
   department?: string;
 
   @ApiProperty({
+    example: 'https://example.com/teacher-photo.jpg',
+    required: false,
+    description: 'Teacher profile photo URL or base64 data',
+  })
+  @IsOptional()
+  @IsString()
+  photo?: string;
+
+  @ApiProperty({
     example: '2026-01-01',
     required: false,
     description: 'Date of joining (YYYY-MM-DD)',

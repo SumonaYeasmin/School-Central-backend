@@ -135,6 +135,7 @@ model Teacher {
   id          String              @id @default(cuid())
   teacherId   String              @unique
   name        String
+  photo       String?
   email       String?             @unique
   phone       String
   designation String
