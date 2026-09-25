@@ -50,8 +50,40 @@ export class AuthService {
       }
     }
 
+    // If still not found, check if identifier matches a parent email or phone
     if (!user) {
-      throw new UnauthorizedException('Invalid email, teacher ID, or password');
+      const parent = await prisma.parent.findFirst({
+        where: {
+          OR: [
+            { email: { equals: identifier, mode: 'insensitive' } },
+            { phone: { equals: identifier } },
+          ],
+        },
+      });
+
+      if (parent) {
+        const parentEmail = parent.email || `${parent.phone}@school.com`;
+        user = await prisma.user.findUnique({
+          where: { email: parentEmail },
+        });
+
+        // Auto-provision User login record for parent if needed
+        if (!user) {
+          const hashedPassword = await bcrypt.hash('123456', 10);
+          user = await prisma.user.create({
+            data: {
+              name: parent.name,
+              email: parentEmail,
+              password: hashedPassword,
+              role: UserRole.PARENT,
+            },
+          });
+        }
+      }
+    }
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid email, phone, teacher ID, or password');
     }
 
     // 2. Validate password
