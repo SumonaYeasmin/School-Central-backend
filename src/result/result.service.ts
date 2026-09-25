@@ -250,10 +250,15 @@ export class ResultService {
     examId: string,
     isPublicView = false,
   ) {
-    // 1. Student exists check (supports both DB id and studentId code like "S01")
+    // 1. Student exists check (supports DB id, studentId code like "S01", and roll number)
     const student = await prisma.student.findFirst({
       where: {
-        OR: [{ id: studentId }, { studentId: studentId }],
+        OR: [
+          { id: studentId },
+          { studentId: { equals: studentId, mode: 'insensitive' } },
+          { roll: studentId },
+          { roll: { equals: studentId, mode: 'insensitive' } },
+        ],
       },
       include: {
         class: true,
