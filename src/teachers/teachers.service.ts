@@ -87,9 +87,19 @@ export class TeachersService {
 
     const teacher = await prisma.teacher.findFirst({
       where: {
-        email: { equals: userEmail, mode: 'insensitive' },
+        OR: [
+          { email: { equals: userEmail, mode: 'insensitive' } },
+          { teacherId: { equals: userEmail, mode: 'insensitive' } },
+        ],
       },
       select: {
+        id: true,
+        name: true,
+        teacherId: true,
+        email: true,
+        phone: true,
+        designation: true,
+        department: true,
         assignments: {
           include: {
             class: true,
@@ -105,28 +115,51 @@ export class TeachersService {
 
     if (!teacher) {
       throw new NotFoundException(
-        `Teacher profile not found with email: ${userEmail}`,
+        `Teacher profile not found with identifier: ${userEmail}`,
       );
     }
 
-    return teacher.assignments.map((item) => ({
-      id: item.id,
-      isClassTeacher: item.isClassTeacher,
-      class: {
-        id: item.class.id,
-        name: item.class.name,
+    const assignmentsWithCount = await Promise.all(
+      teacher.assignments.map(async (item) => {
+        const studentCount = await prisma.student.count({
+          where: {
+            classId: item.class.id,
+            sectionId: item.section.id,
+          },
+        });
+        return {
+          id: item.id,
+          class: {
+            id: item.class.id,
+            name: item.class.name,
+          },
+          section: {
+            id: item.section.id,
+            name: item.section.name,
+          },
+          subject: {
+            id: item.subject.id,
+            name: item.subject.name,
+            code: item.subject.code,
+          },
+          studentCount,
+          createdAt: item.createdAt,
+        };
+      }),
+    );
+
+    return {
+      teacher: {
+        id: teacher.id,
+        name: teacher.name,
+        teacherId: teacher.teacherId,
+        email: teacher.email,
+        phone: teacher.phone,
+        designation: teacher.designation,
+        department: teacher.department,
       },
-      section: {
-        id: item.section.id,
-        name: item.section.name,
-      },
-      subject: {
-        id: item.subject.id,
-        name: item.subject.name,
-        code: item.subject.code,
-      },
-      createdAt: item.createdAt,
-    }));
+      assignments: assignmentsWithCount,
+    };
   }
 
   async getAssignmentStudents(assignmentId: string) {
