@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import prisma from '../shared/prisma.js';
+import { InMemoryCache } from '../shared/cache.service.js';
 import { CreateClassDto } from './dto/create-class.dto.js';
 import { CreateSubjectDto } from './dto/create-subject.dto.js';
 import { CreateSectionDto } from './dto/create-section.dto.js';
@@ -257,6 +258,10 @@ export class AcademicService {
 
   // সব ক্লাস, সেকশন ও বিষয় ডাটাবেজ থেকে আনা (Natural numeric order: Class 6 -> Class 10)
   async getAllClasses() {
+    const cacheKey = 'academic:classes:all';
+    const cached = InMemoryCache.get(cacheKey);
+    if (cached) return cached;
+
     const classes = await prisma.schoolClass.findMany({
       include: {
         sections: {
@@ -284,16 +289,23 @@ export class AcademicService {
       }
     });
 
-    return classes.sort((a, b) => {
+    const sortedClasses = classes.sort((a, b) => {
       const numA = parseInt(a.name.replace(/\D/g, ''), 10) || 0;
       const numB = parseInt(b.name.replace(/\D/g, ''), 10) || 0;
       if (numA !== numB) return numA - numB;
       return a.name.localeCompare(b.name, undefined, { numeric: true });
     });
+
+    InMemoryCache.set(cacheKey, sortedClasses, 300); // 5 mins
+    return sortedClasses;
   }
 
   // সব বিষয় ডাটাবেজ থেকে আনা (classes, groups এবং teachers সহ)
   async getAllSubjects() {
+    const cacheKey = 'academic:subjects:all';
+    const cached = InMemoryCache.get(cacheKey);
+    if (cached) return cached;
+
     const subjects = await prisma.subject.findMany({
       include: {
         classSubjects: {
@@ -310,11 +322,14 @@ export class AcademicService {
       },
     });
 
-    return subjects.sort((a, b) => {
+    const sortedSubjects = subjects.sort((a, b) => {
       const wA = getSubjectSortWeight(a.name, a.code);
       const wB = getSubjectSortWeight(b.name, b.code);
       if (wA !== wB) return wA - wB;
       return a.name.localeCompare(b.name, 'bn');
     });
+
+    InMemoryCache.set(cacheKey, sortedSubjects, 300); // 5 mins
+    return sortedSubjects;
   }
 }

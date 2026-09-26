@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import prisma from '../shared/prisma.js';
+import { InMemoryCache } from '../shared/cache.service.js';
 import { CreateTeacherDto } from './dto/create-teacher.dto.js';
 import { UpdateTeacherDto } from './dto/update-teacher.dto.js';
 import { AssignTeacherDto } from './dto/assign-teacher.dto.js';
@@ -81,6 +82,11 @@ export class TeachersService {
   }
 
   async getMyAssignments(userEmail?: string) {
+    const normalizedEmail = userEmail?.toLowerCase()?.trim() || 'default';
+    const cacheKey = `teachers:my-assignments:${normalizedEmail}`;
+    const cached = InMemoryCache.get(cacheKey);
+    if (cached) return cached;
+
     let teacher = userEmail
       ? await prisma.teacher.findFirst({
           where: {
@@ -137,42 +143,50 @@ export class TeachersService {
     }
 
     if (!teacher) {
-      return {
+      const emptyRes = {
         teacher: null,
         assignments: [],
       };
+      InMemoryCache.set(cacheKey, emptyRes, 60);
+      return emptyRes;
     }
 
-    const assignmentsWithCount = await Promise.all(
-      teacher.assignments.map(async (item) => {
-        const studentCount = await prisma.student.count({
-          where: {
-            classId: item.class.id,
-            sectionId: item.section.id,
-          },
-        });
-        return {
-          id: item.id,
-          class: {
-            id: item.class.id,
-            name: item.class.name,
-          },
-          section: {
-            id: item.section.id,
-            name: item.section.name,
-          },
-          subject: {
-            id: item.subject.id,
-            name: item.subject.name,
-            code: item.subject.code,
-          },
-          studentCount,
-          createdAt: item.createdAt,
-        };
-      }),
-    );
+    // 1 single aggregation query for student counts across all assigned sections (Eliminates N+1 loop)
+    const classIds = Array.from(new Set(teacher.assignments.map((a) => a.class.id)));
+    const sectionCounts = await prisma.student.groupBy({
+      by: ['classId', 'sectionId'],
+      where: { classId: { in: classIds } },
+      _count: { _all: true },
+    });
 
-    return {
+    const countMap = new Map<string, number>();
+    sectionCounts.forEach((sc) => {
+      countMap.set(`${sc.classId}:${sc.sectionId}`, sc._count._all);
+    });
+
+    const assignmentsWithCount = teacher.assignments.map((item) => {
+      const studentCount = countMap.get(`${item.class.id}:${item.section.id}`) || 0;
+      return {
+        id: item.id,
+        class: {
+          id: item.class.id,
+          name: item.class.name,
+        },
+        section: {
+          id: item.section.id,
+          name: item.section.name,
+        },
+        subject: {
+          id: item.subject.id,
+          name: item.subject.name,
+          code: item.subject.code,
+        },
+        studentCount,
+        createdAt: item.createdAt,
+      };
+    });
+
+    const result = {
       teacher: {
         id: teacher.id,
         name: teacher.name,
@@ -184,6 +198,10 @@ export class TeachersService {
       },
       assignments: assignmentsWithCount,
     };
+
+    // Cache in RAM for 3 minutes (180s)
+    InMemoryCache.set(cacheKey, result, 180);
+    return result;
   }
 
   async getAssignmentStudents(assignmentId: string) {
@@ -399,7 +417,7 @@ export class TeachersService {
       );
     }
 
-    return await prisma.teacherAssignment.create({
+    const created = await prisma.teacherAssignment.create({
       data: {
         teacherId: teacher.id,
         classId,
@@ -414,6 +432,9 @@ export class TeachersService {
         subject: true,
       },
     });
+
+    InMemoryCache.invalidate('teachers:*');
+    return created;
   }
 
   async removeAssignment(assignmentId: string) {
@@ -427,8 +448,11 @@ export class TeachersService {
       );
     }
 
-    return await prisma.teacherAssignment.delete({
+    const deleted = await prisma.teacherAssignment.delete({
       where: { id: assignmentId },
     });
+
+    InMemoryCache.invalidate('teachers:*');
+    return deleted;
   }
 }
