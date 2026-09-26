@@ -89,7 +89,11 @@ export class TeachersService {
   }
 
   async getAllTeachers(search?: string, department?: string) {
-    return await prisma.teacher.findMany({
+    const cacheKey = `teachers:all:${search || ''}:${department || ''}`;
+    const cached = InMemoryCache.get(cacheKey);
+    if (cached) return cached;
+
+    const teachers = await prisma.teacher.findMany({
       where: {
         department: department || undefined,
         OR: search
@@ -115,6 +119,9 @@ export class TeachersService {
         createdAt: 'desc',
       },
     });
+
+    InMemoryCache.set(cacheKey, teachers, 180);
+    return teachers;
   }
 
   async getMyAssignments(userEmail?: string) {
@@ -321,6 +328,10 @@ export class TeachersService {
   }
 
   async getTeacherById(id: string) {
+    const cacheKey = `teachers:id:${id}`;
+    const cached = InMemoryCache.get<any>(cacheKey);
+    if (cached) return cached;
+
     const teacher = await prisma.teacher.findFirst({
       where: {
         OR: [{ id }, { teacherId: id }],
@@ -340,6 +351,7 @@ export class TeachersService {
       throw new NotFoundException(`Teacher with ID "${id}" not found`);
     }
 
+    InMemoryCache.set(cacheKey, teacher, 180);
     return teacher;
   }
 
@@ -389,11 +401,38 @@ export class TeachersService {
   }
 
   async deleteTeacher(id: string) {
-    const existingTeacher = await this.getTeacherById(id);
-
-    return await prisma.teacher.delete({
-      where: { id: existingTeacher.id },
+    const teacher = await prisma.teacher.findFirst({
+      where: {
+        OR: [{ id }, { teacherId: id }],
+      },
+      select: { id: true, email: true },
     });
+
+    if (!teacher) {
+      throw new NotFoundException(`Teacher with ID "${id}" not found`);
+    }
+
+    // Run user deletion and teacher deletion in parallel
+    const operations: Promise<any>[] = [
+      prisma.teacher.delete({
+        where: { id: teacher.id },
+      }),
+    ];
+
+    if (teacher.email) {
+      operations.push(
+        prisma.user
+          .deleteMany({
+            where: { email: teacher.email, role: 'TEACHER' },
+          })
+          .catch(() => {}),
+      );
+    }
+
+    const [deleted] = await Promise.all(operations);
+
+    InMemoryCache.invalidate('teachers:*');
+    return deleted;
   }
 
   async assignTeacher(teacherId: string, assignDto: AssignTeacherDto) {
