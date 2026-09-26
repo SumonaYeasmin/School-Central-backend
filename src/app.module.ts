@@ -12,6 +12,7 @@ import { ExamModule } from './exam/exam.module.js';
 import { ResultModule } from './result/result.module.js';
 import { MailModule } from './mail/mail.module.js';
 import { NoticesModule } from './notices/notices.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { NoticesModule } from './notices/notices.module.js';
     ExamModule,
     ResultModule,
     NoticesModule,
+    NotificationsModule
   ],
   controllers: [AppController],
   providers: [AppService],

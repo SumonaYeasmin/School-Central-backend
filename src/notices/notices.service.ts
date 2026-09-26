@@ -3,9 +3,14 @@ import prisma from '../shared/prisma.js';
 import { InMemoryCache } from '../shared/cache.service.js';
 import { CreateNoticeDto } from './dto/create-notice.dto.js';
 import { NoticeCategory, NoticeAudience } from '../generated/prisma/enums.js';
+import { NotificationsGateway } from '../notifications/notifications.gateway.js';
 
 @Injectable()
 export class NoticesService {
+  constructor(
+    private readonly notificationsGateway: NotificationsGateway,
+  ) {}
+
   /**
    * 1. Create a new notice (Admin)
    */
@@ -25,6 +30,18 @@ export class NoticesService {
     });
 
     InMemoryCache.invalidate('notices:*');
+
+    // ২. রিয়েল-টাইম সকেট ইভেন্ট পাঠানো ⚡
+    if (notice.isPublished) {
+      if (notice.targetAudience === 'TEACHERS') {
+        this.notificationsGateway.sendToRole('TEACHER', 'new_notice', notice);
+      } else if (notice.targetAudience === 'PARENTS') {
+        this.notificationsGateway.sendToRole('PARENT', 'new_notice', notice);
+      } else {
+        this.notificationsGateway.sendToAll('new_notice', notice);
+      }
+    }
+
     return notice;
   }
 
