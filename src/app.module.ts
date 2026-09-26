@@ -11,6 +11,7 @@ import { RoutinesModule } from './routines/routines.module.js';
 import { ExamModule } from './exam/exam.module.js';
 import { ResultModule } from './result/result.module.js';
 import { MailModule } from './mail/mail.module.js';
+import { NoticesModule } from './notices/notices.module.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { MailModule } from './mail/mail.module.js';
     RoutinesModule,
     ExamModule,
     ResultModule,
+    NoticesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
