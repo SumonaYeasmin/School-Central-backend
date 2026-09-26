@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import prisma from '../shared/prisma.js';
+import { InMemoryCache } from '../shared/cache.service.js';
 import { CreateResultDto } from './dto/create-result.dto.js';
 import { UpdateResultDto } from './dto/update-result.dto.js';
 import { ResultStatus } from '../generated/prisma/enums.js';
@@ -148,6 +149,8 @@ export class ResultService {
       },
     });
 
+    InMemoryCache.invalidate('results:*');
+
     return {
       message: 'Result created successfully',
       result,
@@ -195,6 +198,10 @@ export class ResultService {
       }
     }
 
+    const cacheKey = `results:${examId || 'all'}:${targetSubjectId || 'all'}:${classId || 'all'}:${sectionId || 'all'}:${targetStudentId || 'all'}`;
+    const cached = InMemoryCache.get(cacheKey);
+    if (cached) return cached;
+
     const results = await prisma.result.findMany({
       where: {
         examId: examId || undefined,
@@ -238,6 +245,7 @@ export class ResultService {
       orderBy: [{ createdAt: 'desc' }],
     });
 
+    InMemoryCache.set(cacheKey, results, 60); // 1 min
     return results;
   }
 
@@ -608,6 +616,8 @@ export class ResultService {
       },
     });
 
+    InMemoryCache.invalidate('results:*');
+
     return {
       message: 'Result updated successfully',
       result: updatedResult,
@@ -629,6 +639,8 @@ export class ResultService {
     await prisma.result.delete({
       where: { id },
     });
+
+    InMemoryCache.invalidate('results:*');
 
     return {
       message: 'Result deleted successfully',

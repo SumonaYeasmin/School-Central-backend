@@ -6,6 +6,7 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import prisma from '../shared/prisma.js';
+import { InMemoryCache } from '../shared/cache.service.js';
 import { CreateStudentDto } from './dto/create-student.dto.js';
 import { UpdateStudentDto } from './dto/update-student.dto.js';
 
@@ -60,7 +61,7 @@ export class StudentsService {
             );
         }
 
-        return await prisma.student.create({
+        const created = await prisma.student.create({
             data: {
                 ...rest,
                 studentId,
@@ -75,10 +76,17 @@ export class StudentsService {
                 section: true,
             },
         });
+
+        InMemoryCache.invalidate('students:*');
+        return created;
     }
 
     async getAllStudents(classId?: string, sectionId?: string) {
-        return await prisma.student.findMany({
+        const cacheKey = `students:${classId || 'all'}:${sectionId || 'all'}`;
+        const cached = InMemoryCache.get(cacheKey);
+        if (cached) return cached;
+
+        const students = await prisma.student.findMany({
             where: {
                 classId: classId || undefined,
                 sectionId: sectionId || undefined,
@@ -96,6 +104,9 @@ export class StudentsService {
                 roll: 'asc',
             },
         });
+
+        InMemoryCache.set(cacheKey, students, 120); // 2 mins
+        return students;
     }
 
     async getStudentById(id: string) {

@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import prisma from '../shared/prisma.js';
+import { InMemoryCache } from '../shared/cache.service.js';
 import { CreateExamDto } from './dto/creat-exam.dto.js';
 import { ResultStatus } from '../generated/prisma/enums.js';
 
@@ -45,6 +46,8 @@ export class ExamService {
       },
     });
 
+    InMemoryCache.invalidate('exams:*');
+
     return {
       message: 'Exam created successfully',
       exam,
@@ -55,7 +58,11 @@ export class ExamService {
    * 2. Get all Exams (with total results count)
    */
   async getAllExams() {
-    return prisma.exam.findMany({
+    const cacheKey = 'exams:all';
+    const cached = InMemoryCache.get(cacheKey);
+    if (cached) return cached;
+
+    const exams = await prisma.exam.findMany({
       include: {
         _count: {
           select: { results: true },
@@ -63,6 +70,9 @@ export class ExamService {
       },
       orderBy: [{ year: 'desc' }, { createdAt: 'desc' }],
     });
+
+    InMemoryCache.set(cacheKey, exams, 300); // 5 mins
+    return exams;
   }
 
   /**
