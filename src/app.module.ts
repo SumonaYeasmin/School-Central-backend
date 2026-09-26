@@ -11,11 +11,13 @@ import { TeachersModule } from './teachers/teachers.module.js';
 import { RoutinesModule } from './routines/routines.module.js';
 import { ExamModule } from './exam/exam.module.js';
 import { ResultModule } from './result/result.module.js';
+import { MailModule } from './mail/mail.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
 @Module({
   imports: [
+    MailModule,
     // Distributed tracing, auto-correlated logs, request/job metrics, error
     // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com
     ObserveModule.forRoot({

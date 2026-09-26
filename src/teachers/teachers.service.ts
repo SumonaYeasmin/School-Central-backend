@@ -4,14 +4,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import prisma from '../shared/prisma.js';
 import { InMemoryCache } from '../shared/cache.service.js';
+import { MailService } from '../mail/mail.service.js';
 import { CreateTeacherDto } from './dto/create-teacher.dto.js';
 import { UpdateTeacherDto } from './dto/update-teacher.dto.js';
 import { AssignTeacherDto } from './dto/assign-teacher.dto.js';
 
 @Injectable()
 export class TeachersService {
+  constructor(private readonly mailService: MailService) {}
+
   async createTeacher(createTeacherDto: CreateTeacherDto) {
     const { teacherId, email, joiningDate, ...rest } = createTeacherDto;
 
@@ -33,7 +37,8 @@ export class TeachersService {
       }
     }
 
-    return await prisma.teacher.create({
+    // 3. Create Teacher record in database
+    const teacher = await prisma.teacher.create({
       data: {
         ...rest,
         teacherId,
@@ -50,6 +55,37 @@ export class TeachersService {
         },
       },
     });
+
+    // 4. If email is provided, generate secure password and send credentials email
+    if (teacher.email) {
+      const temporaryPassword = 'Tch@' + Math.floor(1000 + Math.random() * 9000);
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+      // Create or update User login account
+      await prisma.user.upsert({
+        where: { email: teacher.email },
+        update: { password: hashedPassword, role: 'TEACHER' },
+        create: {
+          name: teacher.name,
+          email: teacher.email,
+          password: hashedPassword,
+          role: 'TEACHER',
+        },
+      });
+
+      // Send email asynchronously in background
+      this.mailService
+        .sendTeacherCredentials(
+          teacher.email,
+          teacher.name,
+          temporaryPassword,
+          teacher.teacherId,
+        )
+        .catch((err) => console.error('Teacher email dispatch error:', err));
+    }
+
+    InMemoryCache.invalidate('teachers:*');
+    return teacher;
   }
 
   async getAllTeachers(search?: string, department?: string) {
