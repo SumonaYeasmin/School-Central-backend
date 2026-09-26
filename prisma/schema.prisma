@@ -256,3 +256,39 @@ enum ResultStatus {
   DRAFT
   PUBLISHED
 }
+
+// -------------------------------------------------------------
+// NOTICE MANAGEMENT MODEL
+// -------------------------------------------------------------
+
+model Notice {
+  id             String         @id @default(cuid())
+  title          String
+  content        String
+  category       NoticeCategory @default(GENERAL)
+  targetAudience NoticeAudience @default(ALL)
+  attachment     String?
+  isPublished    Boolean        @default(true)
+  publishedAt    DateTime       @default(now())
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([targetAudience])
+  @@index([category])
+  @@index([publishedAt])
+}
+
+enum NoticeCategory {
+  ACADEMIC
+  EXAM
+  HOLIDAY
+  EVENT
+  GENERAL
+  EMERGENCY
+}
+
+enum NoticeAudience {
+  ALL
+  TEACHERS
+  PARENTS
+}
