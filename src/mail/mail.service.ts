@@ -98,26 +98,30 @@ export class MailService {
     toEmail: string,
     parentName: string,
     temporaryPassword: string,
-    studentName: string,
-    studentRoll: string,
+    studentName?: string,
+    studentRoll?: string,
   ) {
+    const studentInfo = studentName
+      ? `to monitor academic progress, results, and routines for your child <strong>${studentName}${studentRoll ? ` (Roll: ${studentRoll})` : ''}</strong>.`
+      : `to monitor academic progress, class routines, and exam results for your child.`;
+
     const htmlContent = `
-      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden;">
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <div style="background: linear-gradient(135deg, #0d9488, #14b8a6); padding: 30px 20px; text-align: center; color: white;">
-          <h1 style="margin: 0; font-size: 24px; font-weight: 800;">Greenfield High School</h1>
+          <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">Greenfield High School</h1>
           <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.9;">Parent Portal Access</p>
         </div>
 
         <div style="padding: 30px 25px; color: #334155;">
           <h2 style="font-size: 18px; font-weight: 700; color: #0f172a; margin-top: 0;">Dear ${parentName},</h2>
           <p style="font-size: 14px; line-height: 1.6; color: #475569;">
-            Your account has been created to monitor academic progress and routines for your child <strong>${studentName} (Roll: ${studentRoll})</strong>.
+            Your account has been created on the Greenfield High School portal ${studentInfo}
           </p>
 
           <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; margin: 20px 0;">
             <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
               <tr>
-                <td style="padding: 6px 0; color: #64748b;">Portal URL:</td>
+                <td style="padding: 6px 0; color: #64748b; width: 40%;">Portal URL:</td>
                 <td style="padding: 6px 0; font-weight: 600; color: #0d9488;">http://localhost:3000/login</td>
               </tr>
               <tr>
@@ -125,7 +129,7 @@ export class MailService {
                 <td style="padding: 6px 0; font-weight: 600; color: #0f172a;">${toEmail}</td>
               </tr>
               <tr>
-                <td style="padding: 6px 0; color: #64748b;">Password:</td>
+                <td style="padding: 6px 0; color: #64748b;">Temporary Password:</td>
                 <td style="padding: 6px 0; font-weight: 800; color: #0d9488; font-size: 16px;">${temporaryPassword}</td>
               </tr>
             </table>
@@ -136,6 +140,10 @@ export class MailService {
               Sign In to Parent Portal &rarr;
             </a>
           </div>
+
+          <p style="font-size: 12px; color: #94a3b8; line-height: 1.5; border-top: 1px solid #f1f5f9; padding-top: 15px; margin-bottom: 0;">
+            Security Notice: Please keep your login credentials secure. You can change your password anytime after logging in.
+          </p>
         </div>
       </div>
     `;
@@ -144,9 +152,10 @@ export class MailService {
       const info = await this.transporter.sendMail({
         from: process.env.SMTP_FROM || `"School Central" <${process.env.SMTP_USER}>`,
         to: toEmail,
-        subject: `Parent Portal Login Access - Greenfield High School`,
+        subject: `Your Parent Portal Credentials - Greenfield High School`,
         html: htmlContent,
       });
+      this.logger.log(`Parent credential email sent successfully to ${toEmail} (Message ID: ${info.messageId})`);
       return { success: true, messageId: info.messageId };
     } catch (error: any) {
       this.logger.error(`Failed to send parent email to ${toEmail}: ${error.message}`);

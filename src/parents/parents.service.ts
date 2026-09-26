@@ -3,17 +3,64 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import prisma from '../shared/prisma.js';
+import { MailService } from '../mail/mail.service.js';
 import { CreateParentDto } from './dto/create-parent.dto.js';
 import { UpdateParentDto } from './dto/update-parent.dto.js';
 import { AssignStudentDto } from './dto/assign-student.dto.js';
 
 @Injectable()
 export class ParentsService {
+  constructor(private readonly mailService: MailService) {}
+
   async createParent(createParentDto: CreateParentDto) {
-    return await prisma.parent.create({
-      data: createParentDto,
+    const { email, ...rest } = createParentDto;
+
+    // 1. Check if email already exists
+    if (email) {
+      const existing = await prisma.parent.findFirst({
+        where: { email: { equals: email, mode: 'insensitive' } },
+      });
+      if (existing) {
+        throw new ConflictException(`Parent with email "${email}" already exists`);
+      }
+    }
+
+    // 2. Create Parent in database
+    const parent = await prisma.parent.create({
+      data: {
+        ...rest,
+        email: email || undefined,
+      },
     });
+
+    // 3. If email provided, create User account and dispatch credentials email
+    if (parent.email) {
+      const temporaryPassword = 'Par@' + Math.floor(1000 + Math.random() * 9000);
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+      await prisma.user.upsert({
+        where: { email: parent.email },
+        update: { password: hashedPassword, role: 'PARENT' },
+        create: {
+          name: parent.name,
+          email: parent.email,
+          password: hashedPassword,
+          role: 'PARENT',
+        },
+      });
+
+      this.mailService
+        .sendParentCredentials(
+          parent.email,
+          parent.name,
+          temporaryPassword,
+        )
+        .catch((err) => console.error('Parent email dispatch error:', err));
+    }
+
+    return parent;
   }
 
   async getAllParents(search?: string) {
@@ -206,11 +253,33 @@ export class ParentsService {
   }
 
   async deleteParent(id: string) {
-    await this.getParentById(id);
-
-    return await prisma.parent.delete({
+    const parent = await prisma.parent.findUnique({
       where: { id },
+      select: { id: true, email: true },
     });
+
+    if (!parent) {
+      throw new NotFoundException(`Parent with ID "${id}" not found`);
+    }
+
+    const operations: Promise<any>[] = [
+      prisma.parent.delete({
+        where: { id },
+      }),
+    ];
+
+    if (parent.email) {
+      operations.push(
+        prisma.user
+          .deleteMany({
+            where: { email: parent.email, role: 'PARENT' },
+          })
+          .catch(() => {}),
+      );
+    }
+
+    const [deleted] = await Promise.all(operations);
+    return deleted;
   }
 
   async assignStudent(parentId: string, assignStudentDto: AssignStudentDto) {
