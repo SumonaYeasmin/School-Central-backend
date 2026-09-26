@@ -380,7 +380,20 @@ export class TeachersService {
       }
     }
 
-    return await prisma.teacher.update({
+    // 3. Sync linked User account if email or name updated
+    if (existingTeacher.email && (email || rest.name)) {
+      await prisma.user
+        .updateMany({
+          where: { email: existingTeacher.email, role: 'TEACHER' },
+          data: {
+            name: rest.name ?? existingTeacher.name,
+            email: email ?? existingTeacher.email,
+          },
+        })
+        .catch(() => {});
+    }
+
+    const updated = await prisma.teacher.update({
       where: { id: existingTeacher.id },
       data: {
         ...rest,
@@ -398,6 +411,9 @@ export class TeachersService {
         },
       },
     });
+
+    InMemoryCache.invalidate('teachers:*');
+    return updated;
   }
 
   async deleteTeacher(id: string) {
