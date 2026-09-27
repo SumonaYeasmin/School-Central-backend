@@ -1,10 +1,12 @@
-
 import { Global, Module } from '@nestjs/common';
 import { NotificationsGateway } from './notifications.gateway.js';
+import { NotificationsService } from './notifications.service.js';
+import { NotificationsController } from './notifications.controller.js';
 
-@Global() // 👈 @Global দিলে অন্য কোনো মডিউলে বারবার ইমপোর্ট করতে হবে না!
+@Global()
 @Module({
-  providers: [NotificationsGateway],
-  exports: [NotificationsGateway],
+  controllers: [NotificationsController],
+  providers: [NotificationsGateway, NotificationsService],
+  exports: [NotificationsGateway, NotificationsService],
 })
 export class NotificationsModule {}
