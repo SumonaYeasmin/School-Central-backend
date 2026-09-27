@@ -26,6 +26,17 @@ export class RoutinesController {
     return this.routinesService.createRoutine(createRoutineDto);
   }
 
+  @Patch('publish')
+  @ApiOperation({ summary: 'Publish class routines from DRAFT to PUBLISHED' })
+  @ApiQuery({ name: 'classId', required: false, description: 'Optional Class ID to publish' })
+  @ApiQuery({ name: 'sectionId', required: false, description: 'Optional Section ID to publish' })
+  publishRoutines(
+    @Query('classId') classId?: string,
+    @Query('sectionId') sectionId?: string,
+  ) {
+    return this.routinesService.publishRoutines(classId, sectionId);
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Get all class routines (Full week or specific day, with optional filters)',
