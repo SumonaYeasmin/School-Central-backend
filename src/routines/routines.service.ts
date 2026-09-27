@@ -7,10 +7,12 @@ import {
 import prisma from '../shared/prisma.js';
 import { CreateRoutineDto } from './dto/create-routine.dto.js';
 import { UpdateRoutineDto } from './dto/update-routine.dto.js';
-import { DayOfWeek } from '../generated/prisma/enums.js';
+import { DayOfWeek, RoutineStatus } from '../generated/prisma/enums.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 @Injectable()
 export class RoutinesService {
+  constructor(private readonly notificationsService: NotificationsService) {}
   /**
    * Helper function to convert "HH:mm" time string into minutes from midnight
    * Example: "09:45" -> 9 * 60 + 45 = 585
@@ -593,7 +595,7 @@ export class RoutinesService {
     }
 
     // 7. Perform update
-    return await prisma.classRoutine.update({
+    const updated = await prisma.classRoutine.update({
       where: { id },
       data: {
         day: targetDay,
@@ -626,6 +628,45 @@ export class RoutinesService {
         },
       },
     });
+
+    // 8. Smart Reschedule Alert: Only notify if the routine was already PUBLISHED!
+    if (existing.status === RoutineStatus.PUBLISHED) {
+      if (updated.teacher?.email) {
+        const user = await prisma.user.findUnique({
+          where: { email: updated.teacher.email },
+        });
+        if (user) {
+          await this.notificationsService.sendPersonalNotification({
+            userId: user.id,
+            title: 'Class Routine Rescheduled',
+            message: `Your ${updated.subject.name} period for ${updated.class.name} (${updated.section.name}) has been rescheduled to ${updated.day} at ${updated.startTime} - ${updated.endTime}.`,
+            link: '/teacher/dashboard/routines',
+            type: 'ROUTINE_UPDATE',
+          });
+        }
+      }
+    }
+
+    return updated;
+  }
+
+  /**
+   * Publish routines for a class or section, moving them from DRAFT to PUBLISHED
+   */
+  async publishRoutines(classId?: string, sectionId?: string) {
+    const where: any = {};
+    if (classId) where.classId = classId;
+    if (sectionId) where.sectionId = sectionId;
+
+    const result = await prisma.classRoutine.updateMany({
+      where,
+      data: { status: RoutineStatus.PUBLISHED },
+    });
+
+    return {
+      message: 'Class routines have been published and are now active.',
+      publishedCount: result.count,
+    };
   }
 
   /**
@@ -639,3 +680,4 @@ export class RoutinesService {
     });
   }
 }
+
