@@ -8,13 +8,14 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      UserRole @default(PARENT)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  password      String
+  role          UserRole       @default(PARENT)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  notifications Notification[]
 }
 
 model SchoolClass {
@@ -165,24 +166,26 @@ model TeacherAssignment {
 }
 
 model ClassRoutine {
-  id         String      @id @default(cuid())
+  id         String        @id @default(cuid())
   day        DayOfWeek
   startTime  String
   endTime    String
   roomNumber String?
+  status     RoutineStatus @default(DRAFT)
   classId    String
   sectionId  String
   subjectId  String
   teacherId  String
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  class      SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
-  section    Section     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  subject    Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  teacher    Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  class      SchoolClass   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  section    Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subject    Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher    Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
   @@index([day, classId, sectionId])
   @@index([day, teacherId])
+  @@index([status])
 }
 
 model Exam {
@@ -278,6 +281,11 @@ model Notice {
   @@index([publishedAt])
 }
 
+enum RoutineStatus {
+  DRAFT
+  PUBLISHED
+}
+
 enum NoticeCategory {
   ACADEMIC
   EXAM
@@ -291,4 +299,25 @@ enum NoticeAudience {
   ALL
   TEACHERS
   PARENTS
+}
+
+// -------------------------------------------------------------
+// TARGETED USER NOTIFICATION MODEL
+// -------------------------------------------------------------
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("SYSTEM") // ASSIGNMENT, ROUTINE_UPDATE, GENERAL
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
 }
